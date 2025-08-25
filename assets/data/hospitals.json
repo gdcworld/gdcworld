@@ -1,0 +1,26 @@
+{
+  "hospitals": [
+    {
+      "id": "ADK",
+      "name": "ADK병원",
+      "status": "active",
+      "contract_since": "2025-08-01",
+      "monthly": [
+        { "month": "2025-06", "revenue": 18430000, "claims": 152, "notes": "시범계약" },
+        { "month": "2025-07", "revenue": 21590000, "claims": 173, "notes": "" },
+        { "month": "2025-08", "revenue": 24740000, "claims": 195, "notes": "프로모션 적용" }
+      ]
+    },
+    {
+      "id": "GDC",
+      "name": "GDC병원(본원)",
+      "status": "active",
+      "contract_since": "2023-01-01",
+      "monthly": [
+        { "month": "2025-06", "revenue": 51230000, "claims": 402, "notes": "" },
+        { "month": "2025-07", "revenue": 53870000, "claims": 418, "notes": "" },
+        { "month": "2025-08", "revenue": 56120000, "claims": 431, "notes": "" }
+      ]
+    }
+  ]
+}

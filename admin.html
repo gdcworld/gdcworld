@@ -1,0 +1,437 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <title>Admin – GDC World</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <!-- 파비콘 (상대경로) -->
+  <link rel="icon" href="./favicon.png?v=3" type="image/png">
+
+  <!-- 톤 유지 -->
+  <style>
+    :root{ --gold:#e3c08b; --gold-2:#c4976b; --card:#3a3b41; }
+    body{
+      margin:0; min-height:100vh; display:grid; place-items:center;
+      background: linear-gradient(135deg, var(--gold), var(--gold-2) 60%, #8a674f);
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      color:#fff;
+    }
+  </style>
+
+  <!-- 공통 CSS -->
+  <link rel="stylesheet" href="assets/common.css">
+
+  <!-- 화면 크기 오버라이드 + 서브메뉴 스타일 -->
+  <style>
+    .layout {
+      width: min(1600px, 96vw);
+      grid-template-columns: 240px 1fr;
+      min-height: calc(100vh - 80px);
+      margin: 80px auto;
+      border-radius: 16px;
+      box-shadow: 0 8px 24px rgba(0,0,0,.25);
+      background: rgba(0,0,0,.2);
+    }
+    /* ▼ 사이드바 그룹/서브메뉴 */
+    .nav-group{ display:flex; flex-direction:column; }
+    .nav-parent{
+      display:flex; align-items:center; justify-content:space-between;
+      width:100%; padding:12px 18px; border:0; background:transparent; cursor:pointer;
+      color:#123; font-weight:700; border-left:4px solid transparent;
+    }
+    .nav-parent:hover{ background:#d8f0ff; }
+    .nav-parent.active{ background:#cbe9ff; border-left-color:#3aa2ff; }
+    .nav-parent .chev{ transition: transform .15s ease; }
+    .nav-parent[aria-expanded="true"] .chev{ transform: rotate(180deg); }
+
+    .subnav{ display:none; padding:8px 0 12px 12px; background:#eef8ff; }
+    .subnav.open{ display:block; }
+    .subitem{
+      width:100%; text-align:left; padding:10px 24px; border:0; background:transparent; cursor:pointer;
+      color:#345; border-left:4px solid transparent;
+    }
+    .subitem:hover{ background:#e5f3ff; }
+    .subitem.active{ background:#d8edff; border-left-color:#3aa2ff; color:#123; font-weight:700; }
+  </style>
+
+  <!-- 스크립트 -->
+  <script src="assets/auth.js?v=1" defer></script>
+  <script src="assets/app.js?v=1" defer></script>
+</head>
+<body>
+  <!-- 레이아웃: 사이드바 + 메인 -->
+  <div class="layout">
+    <!-- 사이드바 -->
+    <aside class="sidebar">
+      <div class="brandRow">
+        <img src="./gdc_logo.svg?v=1" alt="logo" style="width:28px;height:28px;">
+        <div>GDC World (Admin)</div>
+      </div>
+      <nav class="nav">
+        <!-- ▼ 비급여치료 (하위 메뉴) -->
+        <div class="nav-group">
+          <button class="nav-parent" data-collapse-target="#sub-noncovered" aria-expanded="false">
+            <span class="left">🖐️ 비급여치료</span><span class="chev">▾</span>
+          </button>
+          <div class="subnav" id="sub-noncovered">
+            <button class="subitem" data-view="noncovered-dosu">도수 치료</button>
+            <button class="subitem" data-view="noncovered-shock">충격파</button>
+            <button class="subitem" data-view="noncovered-dosu-note">도수치료 상담일지</button>
+            <button class="subitem" data-view="noncovered-shock-note">충격파 상담일지</button>
+            <button class="subitem" data-view="noncovered-chart">환자 차트</button>
+          </div>
+        </div>
+
+        <!-- ▼ 소모품 (하위 메뉴) -->
+        <div class="nav-group">
+          <button class="nav-parent" data-collapse-target="#sub-consumables" aria-expanded="false">
+            <span class="left">💼 소모품</span><span class="chev">▾</span>
+          </button>
+          <div class="subnav" id="sub-consumables">
+            <button class="subitem" data-view="consumables-main">소모품</button>
+            <button class="subitem" data-view="consumables-stock">소모품 (재고관리)</button>
+            <button class="subitem" data-view="consumables-balance">소모품 (잔고현황)</button>
+            <button class="subitem" data-view="consumables-byvendor">소모품 (거래처별)</button>
+          </div>
+        </div>
+
+        <!-- ▼ 의약품 (하위 메뉴) -->
+        <div class="nav-group">
+          <button class="nav-parent" data-collapse-target="#sub-drugs" aria-expanded="false">
+            <span class="left">💊 의약품</span><span class="chev">▾</span>
+          </button>
+          <div class="subnav" id="sub-drugs">
+            <button class="subitem" data-view="drugs-main">의약품</button>
+            <button class="subitem" data-view="drugs-stock">의약품 (재고관리)</button>
+            <button class="subitem" data-view="drugs-balance">의약품 (잔고현황)</button>
+            <button class="subitem" data-view="drugs-byvendor">의약품 (거래처별)</button>
+          </div>
+        </div>
+
+        <!-- ▼ 계정관리 (하위 메뉴) -->
+        <div class="nav-group">
+          <button class="nav-parent" data-collapse-target="#sub-accounts" aria-expanded="false">
+            <span class="left">👤 계정관리</span><span class="chev">▾</span>
+          </button>
+          <div class="subnav" id="sub-accounts">
+            <button class="subitem" data-view="accounts-physio">물리치료사</button>
+            <button class="subitem" data-view="accounts-ptadmin">PT관리자</button>
+            <button class="subitem" data-view="accounts-nurse">간호사</button>
+            <button class="subitem" data-view="accounts-frontdesk">원무</button>
+            <button class="subitem" data-view="accounts-radiology">방사선사</button>
+            <button class="subitem" data-view="accounts-vice">부원장</button>
+          </div>
+        </div>
+
+        <!-- 나머지 상위 메뉴 (단일 버튼) -->
+        <button data-view="income"><span class="left">📈 수입/지출</span>›</button>
+        <button data-view="nhis"><span class="left">📋 공단 수령 현황</span>›</button>
+        <button data-view="revisit"><span class="left">📊 재진율</span>›</button>
+        <button data-view="claims"><span class="left">🧾 진료비 청구 내역</span>›</button>
+        <button data-view="closing"><span class="left">📝 마감일지</span>›</button>
+        <button data-view="categories"><span class="left">🗂️ 카테고리 관리</span>›</button>
+        <button data-view="partners"><span class="left">🏥 계약 병원(파트너)</span>›</button>
+      </nav>
+    </aside>
+
+    <!-- 메인 -->
+    <main class="main">
+      <div class="headerBar">
+        <h1 class="h1" id="pageTitle">관리자 대시보드</h1>
+        <div>
+          <span id="whoami" style="opacity:.85;font-size:14px;margin-right:8px;"></span>
+          <button class="btn" id="logoutBtn" type="button">로그아웃</button>
+        </div>
+      </div>
+
+      <!-- 계약 병원(파트너) -->
+      <section class="panel" data-panel="partners" id="partnersBox">
+        <h2 class="h1">계약 병원(파트너) 매출</h2>
+        <div class="tools">
+          <label>병원 선택:
+            <select id="hospitalSelect"></select>
+          </label>
+          <span id="hospitalMeta" style="opacity:.85;"></span>
+          <button class="btn" id="exportCsv" type="button">CSV 내보내기</button>
+        </div>
+        <table class="table" id="hospitalTable">
+          <thead><tr><th>월</th><th>매출</th><th>청구건수</th><th>비고</th></tr></thead>
+          <tbody><tr><td colspan="4">로딩 중…</td></tr></tbody>
+        </table>
+      </section>
+
+      <!-- 카테고리 관리 -->
+      <section class="panel hidden" data-panel="categories" id="categoriesBox">
+        <h2 class="h1">카테고리 관리</h2>
+        <div class="tools" style="gap:8px; flex-wrap:wrap;">
+          <label>메뉴 선택:
+            <select id="categoryModuleSelect">
+              <option value="noncovered">비급여치료</option>
+              <option value="consumables">소모품</option>
+              <option value="drugs">의약품</option>
+              <option value="income">수입/지출</option>
+              <option value="nhis">공단 수령 현황</option>
+              <option value="revisit">재진율</option>
+              <option value="claims">진료비 청구 내역</option>
+              <option value="closing">마감일지</option>
+              <option value="accounts">계정관리</option>
+              <option value="partners">계약 병원(파트너)</option>
+            </select>
+          </label>
+
+          <input id="catNameInput" type="text" placeholder="카테고리 이름 입력"
+                 style="padding:8px 10px;border-radius:8px;border:1px solid #444;background:#202227;color:#fff;min-width:220px;">
+          <button class="btn" id="addCatBtn"    type="button">추가</button>
+          <button class="btn" id="renameCatBtn" type="button">이름 변경</button>
+          <button class="btn" id="deleteCatBtn" type="button">삭제</button>
+
+          <button class="btn" id="exportCatBtn" type="button">내보내기(JSON)</button>
+          <label class="btn" style="cursor:pointer;">
+            가져오기(JSON)
+            <input id="importCatInput" type="file" accept="application/json" style="display:none;">
+          </label>
+        </div>
+
+        <table class="table" id="categoryTable">
+          <thead><tr><th style="width:56px;">#</th><th>카테고리명</th></tr></thead>
+          <tbody><tr><td colspan="2">로딩 중…</td></tr></tbody>
+        </table>
+
+        <p class="muted" style="margin-top:8px;">
+          저장: 브라우저 로컬스토리지. 초기값은 <code>assets/data/categories.json</code>에서 1회 로드됩니다.
+        </p>
+      </section>
+
+      <!-- ▼ 비급여치료 하위 패널 -->
+      <section class="panel hidden" data-panel="noncovered-dosu"><h2 class="h1">도수 치료</h2>준비 중</section>
+      <section class="panel hidden" data-panel="noncovered-shock"><h2 class="h1">충격파</h2>준비 중</section>
+      <section class="panel hidden" data-panel="noncovered-dosu-note"><h2 class="h1">도수치료 상담일지</h2>준비 중</section>
+      <section class="panel hidden" data-panel="noncovered-shock-note"><h2 class="h1">충격파 상담일지</h2>준비 중</section>
+      <section class="panel hidden" data-panel="noncovered-chart"><h2 class="h1">환자 차트</h2>준비 중</section>
+
+      <!-- ▼ 소모품 하위 패널 -->
+      <section class="panel hidden" data-panel="consumables-main"><h2 class="h1">소모품</h2>준비 중</section>
+      <section class="panel hidden" data-panel="consumables-stock"><h2 class="h1">소모품 (재고관리)</h2>준비 중</section>
+      <section class="panel hidden" data-panel="consumables-balance"><h2 class="h1">소모품 (잔고현황)</h2>준비 중</section>
+      <section class="panel hidden" data-panel="consumables-byvendor"><h2 class="h1">소모품 (거래처별)</h2>준비 중</section>
+
+      <!-- ▼ 의약품 하위 패널 -->
+      <section class="panel hidden" data-panel="drugs-main"><h2 class="h1">의약품</h2>준비 중</section>
+      <section class="panel hidden" data-panel="drugs-stock"><h2 class="h1">의약품 (재고관리)</h2>준비 중</section>
+      <section class="panel hidden" data-panel="drugs-balance"><h2 class="h1">의약품 (잔고현황)</h2>준비 중</section>
+      <section class="panel hidden" data-panel="drugs-byvendor"><h2 class="h1">의약품 (거래처별)</h2>준비 중</section>
+
+      <!-- ▼ 계정관리 하위 패널 (account-module) -->
+      <section class="panel hidden" data-panel="accounts-physio">
+        <h2 class="h1">물리치료사</h2>
+        <div class="account-module" data-role="physio"></div>
+      </section>
+
+      <section class="panel hidden" data-panel="accounts-ptadmin">
+        <h2 class="h1">PT관리자</h2>
+        <div class="account-module" data-role="ptadmin"></div>
+      </section>
+
+      <section class="panel hidden" data-panel="accounts-nurse">
+        <h2 class="h1">간호사</h2>
+        <div class="account-module" data-role="nurse"></div>
+      </section>
+
+      <section class="panel hidden" data-panel="accounts-frontdesk">
+        <h2 class="h1">원무</h2>
+        <div class="account-module" data-role="frontdesk"></div>
+      </section>
+
+      <section class="panel hidden" data-panel="accounts-radiology">
+        <h2 class="h1">방사선사</h2>
+        <div class="account-module" data-role="radiology"></div>
+      </section>
+
+      <section class="panel hidden" data-panel="accounts-vice">
+        <h2 class="h1">부원장</h2>
+        <div class="account-module" data-role="vice"></div>
+      </section>
+
+      <!-- 기존 단일 패널 -->
+      <section class="panel hidden" data-panel="income"><h2 class="h1">수입/지출</h2>준비 중</section>
+      <section class="panel hidden" data-panel="nhis"><h2 class="h1">공단 수령 현황</h2>준비 중</section>
+      <section class="panel hidden" data-panel="revisit"><h2 class="h1">재진율</h2>준비 중</section>
+      <section class="panel hidden" data-panel="claims"><h2 class="h1">진료비 청구 내역</h2>준비 중</section>
+      <section class="panel hidden" data-panel="closing"><h2 class="h1">마감일지</h2>준비 중</section>
+    </main>
+  </div>
+
+  <!-- 인증/로그아웃/네비 스크립트 -->
+  <script>
+    document.addEventListener('DOMContentLoaded', function(){
+      if (!window.Auth) { alert('auth.js 로드 실패'); return; }
+      Auth.requireRole(['admin']);
+
+      const emailEl = document.getElementById('whoami');
+      if (emailEl) emailEl.textContent = Auth.currentUserEmail() || '';
+
+      const btn = document.getElementById('logoutBtn');
+      if (btn) btn.addEventListener('click', function(){
+        Auth.logout();
+        location.replace('index.html');
+      });
+
+      if (window.AdminUI?.init) window.AdminUI.init();
+
+      const titleMap = {
+        'noncovered-dosu':'도수 치료',
+        'noncovered-shock':'충격파',
+        'noncovered-dosu-note':'도수치료 상담일지',
+        'noncovered-shock-note':'충격파 상담일지',
+        'noncovered-chart':'환자 차트',
+        'consumables-main':'소모품',
+        'consumables-stock':'소모품 (재고관리)',
+        'consumables-balance':'소모품 (잔고현황)',
+        'consumables-byvendor':'소모품 (거래처별)',
+        'drugs-main':'의약품',
+        'drugs-stock':'의약품 (재고관리)',
+        'drugs-balance':'의약품 (잔고현황)',
+        'drugs-byvendor':'의약품 (거래처별)',
+        'accounts-physio':'물리치료사',
+        'accounts-ptadmin':'PT관리자',
+        'accounts-nurse':'간호사',
+        'accounts-frontdesk':'원무',
+        'accounts-radiology':'방사선사',
+        'accounts-vice':'부원장',
+        'partners':'계약 병원(파트너)',
+        'categories':'카테고리 관리',
+        'income':'수입/지출',
+        'nhis':'공단 수령 현황',
+        'revisit':'재진율',
+        'claims':'진료비 청구 내역',
+        'closing':'마감일지'
+      };
+
+function showPanel(id){
+  document.querySelectorAll('[data-panel]').forEach(p=>{
+    p.classList.toggle('hidden', p.getAttribute('data-panel') !== id);
+  });
+
+  const h = document.getElementById('pageTitle');
+  if (h) h.textContent = titleMap[id] || h.textContent;
+
+  document.querySelectorAll('.subitem').forEach(b=>{
+    b.classList.toggle('active', b.dataset.view === id);
+  });
+
+  // ▼ 탭 전환 시 해당 패널 내부 account-module만 부팅
+  if (window.__bootAccountsModules) {
+    const panelEl = document.querySelector(`[data-panel="${id}"]`);
+    window.__bootAccountsModules(panelEl);
+  }
+}
+
+      // 그룹 토글
+      document.querySelectorAll('.nav-parent').forEach(parent=>{
+        const targetSel = parent.getAttribute('data-collapse-target');
+        const box = targetSel ? document.querySelector(targetSel) : null;
+        parent.addEventListener('click', ()=>{
+          const open = parent.getAttribute('aria-expanded') === 'true';
+          parent.setAttribute('aria-expanded', String(!open));
+          if (box) box.classList.toggle('open', !open);
+        });
+      });
+
+      // 하위 항목 클릭 시 패널 표시
+      document.querySelectorAll('.subitem[data-view]').forEach(btn=>{
+        btn.addEventListener('click', ()=> showPanel(btn.dataset.view));
+      });
+    });
+  </script>
+
+  <!-- 계정관리 테이블 모듈 -->
+  <script src="assets/accounts.js?v=2" defer></script>
+ <!-- 계정 생성/수정 모달 -->
+<div id="account-modal" class="modal hidden">
+  <div class="modal-card">
+    <h3 id="account-modal-title">계정 생성</h3>
+    <form id="account-form">
+  <div class="grid">
+    <label>로그인 ID
+      <input name="loginId" type="text" required placeholder="physio_user1" />
+    </label>
+ <label>비밀번호
+  <div style="display:flex;align-items:center;gap:6px;">
+    <input name="password" type="password" placeholder="초기 비밀번호" style="flex:1;" />
+    <button type="button" class="btn ghost toggle-pass" data-target="password">보기</button>
+  </div>
+</label>
+
+<label>비밀번호 확인
+  <div style="display:flex;align-items:center;gap:6px;">
+    <input name="password2" type="password" placeholder="다시 입력" style="flex:1;" />
+    <button type="button" class="btn ghost toggle-pass" data-target="password2">보기</button>
+  </div>
+</label>
+
+
+    <label>이름
+      <input name="name" type="text" required placeholder="홍길동" />
+    </label>
+    <label>이메일
+      <input name="email" type="email" placeholder="user@example.com" />
+    </label>
+    <label>전화번호
+      <input name="phone" type="tel" placeholder="010-1234-5678" />
+    </label>
+    <label>상태
+      <select name="status" required>
+        <option value="active">활성</option>
+        <option value="inactive">비활성</option>
+      </select>
+    </label>
+  </div>
+
+  <!-- ✅ 역할별 추가 필드가 동적으로 주입되는 영역 (필수) -->
+  <div class="grid" id="extra-fields" style="margin-top:10px;"></div>
+
+  <div class="row right">
+    <button type="button" class="btn ghost" id="account-cancel">취소</button>
+    <button type="submit" class="btn primary" id="account-save">저장</button>
+  </div>
+</form>
+
+  </div>
+</div>
+
+<!-- 간단 토스트 -->
+<div id="toast" class="toast hidden"></div>
+
+<style>
+  .hidden{display:none}
+  .modal{position:fixed; inset:0; display:grid; place-items:center; background:rgba(0,0,0,.45); z-index:1000}
+  .modal-card{width:min(620px, 92vw); background:#2b2d33; color:#fff; border-radius:16px; padding:20px; box-shadow:0 10px 30px rgba(0,0,0,.4)}
+  .modal-card h3{margin:0 0 12px}
+  .modal-card .grid{display:grid; grid-template-columns:1fr 1fr; gap:12px}
+  .modal-card label{display:flex; flex-direction:column; gap:6px; font-size:14px}
+  .modal-card input, .modal-card select{
+    padding:10px 12px; border:1px solid #444; border-radius:10px; background:#1f2025; color:#fff; outline:none
+  }
+  .row.right{display:flex; gap:8px; justify-content:flex-end; margin-top:14px}
+  .btn{padding:10px 14px; border-radius:10px; border:1px solid transparent; background:#3a3b41; color:#fff; cursor:pointer}
+  .btn.primary{background:var(--gold-2)}
+  .btn.ghost{background:transparent; border-color:#555}
+  .toast{position:fixed; bottom:24px; left:50%; transform:translateX(-50%);
+         background:#1f2025; color:#fff; padding:10px 14px; border-radius:10px; border:1px solid #444; z-index:1100}
+</style>
+  <script>
+  // 비밀번호 보기/숨기기 토글
+  document.addEventListener("click", (e) => {
+    const btn = e.target.closest(".toggle-pass");
+    if (!btn) return;
+    let scope = btn.closest("label, .row, .field, div");
+    let input = scope?.querySelector(`input[name="${btn.dataset.target || ""}"]`);
+    if (!input) input = scope?.querySelector('input[type="password"], input[type="text"]');
+    if (!input) return;
+    input.type = (input.type === "password") ? "text" : "password";
+    btn.textContent = (input.type === "password") ? "보기" : "숨기기";
+  });
+  </script>
+</body>
+</html>
