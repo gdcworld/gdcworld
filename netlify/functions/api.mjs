@@ -1,12 +1,9 @@
-// netlify/functions/api.mjs
 import { randomUUID } from "crypto";
 
-// ⚠️ 메모리 저장소 (배포/콜드스타트 시 초기화됨)
-const DB = {
-  accounts: new Map(), // id -> { id, name, email, role, createdAt, updatedAt }
-};
+// 메모리 저장소
+const DB = { accounts: new Map() };
 
-// 공통 응답 헬퍼
+// 공통 응답
 const headers = {
   "Content-Type": "application/json; charset=utf-8",
   "Access-Control-Allow-Origin": "*",
@@ -29,61 +26,32 @@ function parseJSON(body) {
   }
 }
 
-// 경로 파싱: 둘 다 허용 (/.netlify/functions/api/*, /api/*)
+// 경로 파싱
 function getRoute(path) {
   const full = path || "";
   return full.replace(/^\/(?:\.netlify\/functions\/api|api)/, "") || "/";
 }
 
-// 엔드포인트 구현
-async function handleHealth(event, route) {
-  if ((route === "/" || route === "/health") && event.httpMethod === "GET") {
-    return res(200, {
-      ok: true,
-      message: "Netlify function is alive",
-      path: event.path,
-      time: new Date().toISOString(),
-      hint: "Try GET /api/accounts",
-    });
-  }
-  return null;
+// 밸리데이션 함수
+function validateAccount({ name, email, password, role }) {
+  if (!name || name.length < 2) return "name_required_or_too_short";
+  if (!email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return "invalid_email";
+  if (!password || password.length < 6) return "password_too_short";
+  if (role && !["admin", "staff", "member"].includes(role)) return "invalid_role";
+  return null; // 에러 없음
 }
 
-function toList(map) {
-  return Array.from(map.values()).sort((a, b) =>
-    (b.updatedAt || b.createdAt).localeCompare(a.updatedAt || a.createdAt)
-  );
-}
-
+// 엔드포인트
 async function handleAccounts(event, route) {
-  // /accounts 또는 /accounts/:id
   const m = route.match(/^\/accounts(?:\/([^\/]+))?$/);
   if (!m) return null;
 
-  const id = m[1]; // 존재하면 단건
+  const id = m[1];
   const method = event.httpMethod;
 
-  // GET /accounts  (목록)
+  // GET /accounts (목록)
   if (!id && method === "GET") {
-    const q = new URLSearchParams(event.queryStringParameters || {}).get("q");
-    let items = toList(DB.accounts);
-    if (q) {
-      const s = q.toLowerCase();
-      items = items.filter(
-        (a) =>
-          (a.name || "").toLowerCase().includes(s) ||
-          (a.email || "").toLowerCase().includes(s) ||
-          (a.role || "").toLowerCase().includes(s)
-      );
-    }
-    return res(200, { items, count: items.length });
-  }
-
-  // GET /accounts/:id (조회)
-  if (id && method === "GET") {
-    const found = DB.accounts.get(id);
-    if (!found) return res(404, { ok: false, error: "not_found" });
-    return res(200, found);
+    return res(200, { items: Array.from(DB.accounts.values()) });
   }
 
   // POST /accounts (생성)
@@ -92,16 +60,16 @@ async function handleAccounts(event, route) {
     if (data === Symbol.for("INVALID_JSON"))
       return res(400, { ok: false, error: "invalid_json" });
 
-    const { name, email, role } = data || {};
-    if (!name || !email)
-      return res(400, { ok: false, error: "name_and_email_required" });
+    const error = validateAccount(data || {});
+    if (error) return res(400, { ok: false, error });
 
     const now = new Date().toISOString();
     const newObj = {
       id: randomUUID(),
-      name,
-      email,
-      role: role || "member",
+      name: data.name,
+      email: data.email,
+      password: data.password, // ⚠️ 여기서는 평문 저장 (실제로는 해시해야 함)
+      role: data.role || "member",
       createdAt: now,
       updatedAt: now,
     };
@@ -109,7 +77,14 @@ async function handleAccounts(event, route) {
     return res(201, newObj);
   }
 
-  // PATCH /accounts/:id (부분 수정)
+  // GET /accounts/:id
+  if (id && method === "GET") {
+    const found = DB.accounts.get(id);
+    if (!found) return res(404, { ok: false, error: "not_found" });
+    return res(200, found);
+  }
+
+  // PATCH /accounts/:id
   if (id && method === "PATCH") {
     const data = parseJSON(event.body);
     if (data === Symbol.for("INVALID_JSON"))
@@ -118,19 +93,15 @@ async function handleAccounts(event, route) {
     const cur = DB.accounts.get(id);
     if (!cur) return res(404, { ok: false, error: "not_found" });
 
-    const next = {
-      ...cur,
-      ...["name", "email", "role"].reduce((acc, k) => {
-        if (k in (data || {})) acc[k] = data[k];
-        return acc;
-      }, {}),
-      updatedAt: new Date().toISOString(),
-    };
+    const next = { ...cur, ...data, updatedAt: new Date().toISOString() };
+    const error = validateAccount(next);
+    if (error) return res(400, { ok: false, error });
+
     DB.accounts.set(id, next);
     return res(200, next);
   }
 
-  // DELETE /accounts/:id (삭제)
+  // DELETE /accounts/:id
   if (id && method === "DELETE") {
     const existed = DB.accounts.delete(id);
     if (!existed) return res(404, { ok: false, error: "not_found" });
@@ -145,14 +116,12 @@ export async function handler(event) {
 
   const route = getRoute(event.path);
 
-  // 1) 헬스
-  const health = await handleHealth(event, route);
-  if (health) return health;
+  if ((route === "/" || route === "/health") && event.httpMethod === "GET") {
+    return res(200, { ok: true, message: "alive", time: new Date().toISOString() });
+  }
 
-  // 2) 계정 CRUD
   const accounts = await handleAccounts(event, route);
   if (accounts) return accounts;
 
-  // 3) 404
   return res(404, { ok: false, error: "route_not_found", route, path: event.path });
 }
