@@ -32,12 +32,18 @@ function getRoute(path) {
   return full.replace(/^\/(?:\.netlify\/functions\/api|api)/, "") || "/";
 }
 
+// 허용 역할 확장
+const ALLOWED_ROLES = [
+  "admin", "staff", "member",
+  "physio", "ptadmin", "nurse", "frontdesk", "radiology", "vice"
+];
+
 // 밸리데이션 함수
 function validateAccount({ name, email, password, role }) {
   if (!name || name.length < 2) return "name_required_or_too_short";
   if (!email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return "invalid_email";
   if (!password || password.length < 6) return "password_too_short";
-  if (role && !["admin", "staff", "member"].includes(role)) return "invalid_role";
+  if (role && !ALLOWED_ROLES.includes(role)) return "invalid_role";
   return null; // 에러 없음
 }
 
@@ -68,7 +74,7 @@ async function handleAccounts(event, route) {
       id: randomUUID(),
       name: data.name,
       email: data.email,
-      password: data.password, // ⚠️ 여기서는 평문 저장 (실제로는 해시해야 함)
+      password: data.password, // ⚠️ 여기서는 평문 저장 (실제로는 해시 필요)
       role: data.role || "member",
       createdAt: now,
       updatedAt: now,
