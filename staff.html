@@ -41,26 +41,28 @@
   <script src="assets/auth.js?v=1" defer></script>
 
   <script>
-    document.addEventListener('DOMContentLoaded', function(){
-      if (!window.Auth) { alert('auth.js 로드 실패'); return; }
+  document.addEventListener('DOMContentLoaded', function(){
+    if (!window.Auth) { alert('auth.js 로드 실패'); return; }
 
-      // 직원 전용 접근
-      Auth.requireRole(['staff']);
+    // 직원 전용 접근(여러 역할 허용)
+    Auth.requireRole([
+      'staff','member','physio','ptadmin','nurse','frontdesk','radiology','vice'
+    ]);
 
-      // 로그인된 사용자 이메일 표시
-      const emailEl = document.getElementById('whoami');
-      if (emailEl) emailEl.textContent = Auth.currentUserEmail() || '';
+    // 로그인된 사용자 이메일 표시
+    const emailEl = document.getElementById('whoami');
+    if (emailEl) emailEl.textContent = Auth.currentUserEmail() || '';
 
-      // 로그아웃 버튼
-      const btn = document.getElementById('logoutBtn');
-      if (btn) {
-        btn.addEventListener('click', function(){
-          Auth.logout();
-          location.replace('index.html'); // ✅ index.html로 이동
-        });
-      }
-    });
-  </script>
+    // 로그아웃 버튼
+    const btn = document.getElementById('logoutBtn');
+    if (btn) {
+      btn.addEventListener('click', function(){
+        Auth.logout();
+        location.replace('login.html');  // ← 여기만 login.html로!
+      });
+    }
+  });
+</script>
 </head>
 <body>
   <div class="card">

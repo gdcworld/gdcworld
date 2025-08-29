@@ -1,4 +1,4 @@
-// assets/auth.js  (NO <script> tags!)
+// assets/auth.js
 (function () {
   const KEY = 'gdc.session';
   const now = () => Date.now();
@@ -58,12 +58,12 @@
     const s = getSession();
     if (!s) {
       alert('로그인이 필요합니다.');
-      location.replace('index.html');
+      location.replace('login.html');   // ✅ index.html → login.html
       return;
     }
     if (roles && !roles.includes(s.role)) {
       alert('권한이 없습니다.');
-      location.replace('index.html');
+      location.replace('login.html');   // ✅ index.html → login.html
       return;
     }
   }
