@@ -5,7 +5,7 @@
   <title>Staff – GDC World</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
 
-  <!-- ✅ 상대경로로 수정 -->
+  <!-- ✅ 상대경로 유지 -->
   <link rel="icon" href="./favicon.png?v=3" type="image/png">
 
   <style>
@@ -37,44 +37,43 @@
     .muted{ opacity:.8; font-size:14px; }
   </style>
 
-  <!-- ✅ auth.js 경로 & defer -->
-  <script src="assets/auth.js?v=1" defer></script>
+  <!-- ✅ auth.js 경로 & 캐시버스트 -->
+  <script src="assets/auth.js?v=2" defer></script>
 
   <script>
-  document.addEventListener('DOMContentLoaded', function(){
-    if (!window.Auth) { alert('auth.js 로드 실패'); return; }
+    document.addEventListener('DOMContentLoaded', function(){
+      if (!window.Auth) { alert('auth.js 로드 실패'); return; }
 
-    // 직원 전용 접근(여러 역할 허용)
-    Auth.requireRole([
-      'staff','member','physio','ptadmin','nurse','frontdesk','radiology','vice'
-    ]);
+      // 직원 전용 접근(여러 역할 허용) — ✅ admin 포함
+      Auth.requireRole([
+        'admin','staff','member','physio','ptadmin','nurse','frontdesk','radiology','vice'
+      ]);
 
-    // 로그인된 사용자 이메일 표시
-    const emailEl = document.getElementById('whoami');
-    if (emailEl) emailEl.textContent = Auth.currentUserEmail() || '';
+      // 로그인된 사용자 이메일 표시
+      const emailEl = document.getElementById('whoami');
+      if (emailEl) emailEl.textContent = Auth.currentUserEmail() || '';
 
-    // 로그아웃 버튼
-    const btn = document.getElementById('logoutBtn');
-    if (btn) {
-      btn.addEventListener('click', function(){
-        Auth.logout();
-        location.replace('login.html');  // ← 여기만 login.html로!
-      });
-    }
-  });
-</script>
+      // 로그아웃 버튼
+      const btn = document.getElementById('logoutBtn');
+      if (btn) {
+        btn.addEventListener('click', function(){
+          Auth.logout();
+          location.replace('login.html');
+        });
+      }
+    });
+  </script>
 </head>
 <body>
   <div class="card">
     <header>
       <div class="brand">
-        <!-- ✅ 로고도 상대경로 -->
+        <!-- ✅ 로고 상대경로 -->
         <img src="./gdc_logo.svg?v=1" alt="logo" onerror="this.style.display='none'">
         <h1>GDC World · 직원 작업 화면</h1>
       </div>
       <div class="actions">
         <span class="muted" id="whoami"></span>
-        <!-- ✅ type="button" 추가 -->
         <button class="btn" id="logoutBtn" type="button">로그아웃</button>
       </div>
     </header>
