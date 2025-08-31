@@ -4,13 +4,15 @@ import bcrypt from 'bcryptjs';
 
 const supabase = createClient(
   process.env.SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE // 서버 전용(브라우저 X)
+  process.env.SUPABASE_SERVICE_ROLE // 서버 전용 키
 );
 
+// 허용 역할
 const ALLOWED_ROLES = [
   'admin','staff','member','physio','ptadmin','nurse','frontdesk','radiology','vice'
 ];
 
+// 공통 응답 헬퍼
 const headers = {
   'Content-Type': 'application/json; charset=utf-8',
   'Access-Control-Allow-Origin': '*',
@@ -18,40 +20,45 @@ const headers = {
   'Access-Control-Allow-Methods': 'GET,POST,PATCH,DELETE,OPTIONS'
 };
 const send = (statusCode, data) => ({ statusCode, headers, body: JSON.stringify(data) });
+const safeJson = (str) => { try { return JSON.parse(str || '{}'); } catch { return null; } };
 
-function safeJson(str){ try{ return JSON.parse(str || '{}'); } catch { return null; } }
-
-export async function handler(event){
+export async function handler(event) {
   if (event.httpMethod === 'OPTIONS') return send(204, {});
 
-  // 실제 URL/경로 파싱
+  // 실제 path 계산
   const rawUrl  = event.rawUrl ? new URL(event.rawUrl) : null;
   const rawPath = rawUrl ? rawUrl.pathname : (event.path || '');
   const path    = (rawPath || '').replace(/\/.netlify\/functions\/api/i, '') || '/';
   const method  = (event.httpMethod || 'GET').toUpperCase();
 
-  // 🔍 디버그 A) 쿼리로 확인: /.netlify/functions/api?__whoami=1
-if (rawUrl && rawUrl.searchParams.get('__whoami') === '1') {
-  const url = process.env.SUPABASE_URL || '';
-  const m   = url.match(/^https:\/\/([^.]+)\.supabase\.co/i);
-  const ref = m ? m[1] : null;
-  return send(200, { ok: true, supabaseUrl: url, projectRef: ref });
-}
+  // ───────── 디버그/헬스체크 ─────────
+  // 1) 쿼리로 whoami: /.netlify/functions/api?__whoami=1
+  if (rawUrl && rawUrl.searchParams.get('__whoami') === '1') {
+    const url = process.env.SUPABASE_URL || '';
+    const m   = url.match(/^https:\/\/([^.]+)\.supabase\.co/i);
+    const ref = m ? m[1] : null;
+    return send(200, { ok: true, supabaseUrl: url, projectRef: ref });
+  }
+
+  // 2) 라우트 whoami: /api/whoami
+  if (path === '/whoami' && method === 'GET') {
+    const url = process.env.SUPABASE_URL || '';
+    const m   = url.match(/^https:\/\/([^.]+)\.supabase\.co/i);
+    const ref = m ? m[1] : null;
+    return send(200, { ok: true, supabaseUrl: url, projectRef: ref });
+  }
+
+  // 3) 헬스체크: /api/health
+  if (path === '/health' && method === 'GET') {
+    return send(200, { ok: true, message: 'alive', time: new Date().toISOString() });
+  }
+  if (path === '/' && method === 'GET') {
+    return send(404, { ok: false, message: 'Not Found' });
+  }
 
   try {
-    // 🔍 디버그 B) 라우트로 확인: /.netlify/functions/api/whoami
-    if (path === '/whoami' && method === 'GET') {
-      const url = process.env.SUPABASE_URL || '';
-      const m   = url.match(/^https:\/\/([^.]+)\.supabase\.co/i);
-      const ref = m ? m[1] : null;
-      return send(200, { ok:true, supabaseUrl:url, projectRef:ref });
-    }
-
-    // 헬스체크
-    if (path === '/health' && method === 'GET') return send(200, { ok:true });
-    if (path === '/'       && method === 'GET') return send(404, { ok:false, message:'Not Found' });
-
-    // ----- 로그인 -----
+    // ───────── 로그인 ─────────
+    // POST /api/login  { email, password }
     if (path === '/login' && method === 'POST') {
       const { email, password } = safeJson(event.body) || {};
       if (!email || !password) return send(400, { ok:false, message:'email, password 필요' });
@@ -70,7 +77,8 @@ if (rawUrl && rawUrl.searchParams.get('__whoami') === '1') {
       return send(200, { ok:true, user:{ id:user.id, email:user.email, role:user.role } });
     }
 
-    // ----- 계정 목록/생성/수정/삭제 -----
+    // ───────── 계정 CRUD ─────────
+    // /api/accounts
     if (path === '/accounts') {
       if (method === 'GET') {
         const { data, error } = await supabase
@@ -135,7 +143,8 @@ if (rawUrl && rawUrl.searchParams.get('__whoami') === '1') {
       return send(405, { ok:false, message:'Method Not Allowed' });
     }
 
-    return send(404, { ok:false, message:'Not Found', route:path });
+    // 라우트 없음
+    return send(404, { ok:false, error:'route_not_found', route:path, path:rawPath });
   } catch (e) {
     console.error(e);
     return send(500, { ok:false, message:e?.message || 'Server error' });
