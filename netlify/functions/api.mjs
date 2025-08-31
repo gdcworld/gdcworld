@@ -25,19 +25,35 @@ const send = (statusCode, data) => ({
   body: JSON.stringify(data)
 });
 
+function safeJson(str) {
+  try { return JSON.parse(str || '{}'); } catch { return null; }
+}
+
 export async function handler(event) {
   if (event.httpMethod === 'OPTIONS') return send(204, {});
 
-  // path: "/.netlify/functions/api", "/.netlify/functions/api/health", ...
+  // path: "/.netlify/functions/api/...":
   const path = (event.path || '').replace(/\/.netlify\/functions\/api/i, '') || '/';
   const method = event.httpMethod.toUpperCase();
 
   try {
+    // --- 디버그: 현재 함수가 바라보는 Supabase URL/프로젝트 ref 확인 ---
+    // 사용법: https://gdcworld.co.kr/.netlify/functions/api/whoami
+    if (path === '/whoami' && method === 'GET') {
+      const url = process.env.SUPABASE_URL || '';
+      const m = url.match(/^https:\/\/([^.]+)\.supabase\.co/i);
+      const ref = m ? m[1] : null; // 프로젝트 ref (서브도메인)
+      return send(200, {
+        ok: true,
+        supabaseUrl: url,
+        projectRef: ref
+      });
+    }
+
     // 헬스체크
     if (path === '/' || path === '/health') {
       if (path === '/health') return send(200, { ok: true });
-      // 루트("/") 접근은 Not Found로
-      if (path === '/') return send(404, { ok: false, message: 'Not Found' });
+      if (path === '/')      return send(404, { ok: false, message: 'Not Found' });
     }
 
     // ----- 로그인 -----
@@ -56,7 +72,6 @@ export async function handler(event) {
       const passOK = await bcrypt.compare(password, user.password_hash || '');
       if (!passOK) return send(401, { ok: false, message: '이메일 또는 비밀번호가 올바르지 않습니다.' });
 
-      // 비밀번호는 제거하고 최소정보만 반환
       return send(200, { ok: true, user: { id: user.id, email: user.email, role: user.role } });
     }
 
@@ -87,10 +102,7 @@ export async function handler(event) {
           .select('id,email,role,created_at')
           .single();
 
-        if (error) {
-          // 중복 이메일 등
-          return send(400, { ok: false, message: error.message });
-        }
+        if (error) return send(400, { ok: false, message: error.message }); // 예: 중복 이메일
         return send(200, { ok: true, item: data });
       }
 
@@ -136,8 +148,4 @@ export async function handler(event) {
     console.error(e);
     return send(500, { ok: false, message: e?.message || 'Server error' });
   }
-}
-
-function safeJson(str) {
-  try { return JSON.parse(str || '{}'); } catch { return null; }
 }
