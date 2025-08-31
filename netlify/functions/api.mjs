@@ -31,12 +31,12 @@ export async function handler(event){
   const method  = (event.httpMethod || 'GET').toUpperCase();
 
   // 🔍 디버그 A) 쿼리로 확인: /.netlify/functions/api?__whoami=1
-  if (rawUrl && rawUrl.searchParams.get('__whoami') === '1') {
-    const url = process.env.SUPABASE_URL || '';
-    const m   = url.match(/^https:\/\/([^.]+)\.supabase\.co/i);
-    const ref = m ? m[1] : null;
-    return send(200, { ok:true, supabaseUrl:url, projectRef:ref });
-  }
+if (rawUrl && rawUrl.searchParams.get('__whoami') === '1') {
+  const url = process.env.SUPABASE_URL || '';
+  const m   = url.match(/^https:\/\/([^.]+)\.supabase\.co/i);
+  const ref = m ? m[1] : null;
+  return send(200, { ok: true, supabaseUrl: url, projectRef: ref });
+}
 
   try {
     // 🔍 디버그 B) 라우트로 확인: /.netlify/functions/api/whoami
