@@ -54,10 +54,8 @@
     .login-button:hover{ transform: translateY(-1px); box-shadow:0 10px 18px rgba(227,192,139,.4); }
     .login-button:active{ transform: translateY(0); box-shadow:0 4px 10px rgba(227,192,139,.3); }
     .form-wrap{ max-width:320px; margin:0 auto; }
+    .error{ margin-top:12px; color:#ffb6b6; font-size:13px; min-height:1.2em; text-align:center }
   </style>
-
-  <!-- ✅ auth helpers (로컬 테스트를 위해 상대경로 사용) -->
-  <script src="assets/auth.js?v=1" defer></script>
 </head>
 <body>
   <div class="login-container">
@@ -66,7 +64,6 @@
     </div>
     <h2>GDC World</h2>
 
-    <!-- ✅ id/name 추가 -->
     <form id="loginForm" autocomplete="on">
       <div class="form-wrap">
         <div class="field">
@@ -75,7 +72,8 @@
         <div class="field">
           <input id="password" name="password" type="password" placeholder="Password" autocomplete="current-password" required />
         </div>
-        <button type="submit" class="login-button">Login</button>
+        <button id="loginBtn" type="submit" class="login-button">Login</button>
+        <div id="err" class="error"></div>
       </div>
     </form>
   </div>
@@ -98,8 +96,8 @@
     </svg>
   </template>
 
-  <!-- 로고 캐시버스팅/폴백 -->
   <script>
+    // 로고 캐시버스팅/폴백
     (function(){
       const img = document.getElementById('brandLogo');
       function inlineFallback(){
@@ -111,31 +109,80 @@
       img.addEventListener('error', inlineFallback);
       try { img.src = './gdc_logo.png?v=' + Date.now(); } catch(e){}
     })();
-  </script>
 
-  <!-- ✅ 로그인 submit 핸들러 -->
-  <script>
+    // 이미 로그인되어 있으면 역할별로 바로 이동
+    (function(){
+      try{
+        const raw = localStorage.getItem('gdc_user');
+        if(!raw) return;
+        const user = JSON.parse(raw);
+        if (user?.role === 'admin') location.replace('admin.html');
+        else if (user?.role) location.replace('staff.html');
+      }catch(e){}
+    })();
+
+    // 엔드포인트 자동 선택: /api/login 우선, 실패 시 Functions 쿼리로 재시도
+    async function loginRequest(body){
+      // 1차: 프록시(/api/login) 사용 시
+      try{
+        const r1 = await fetch('/api/login', {
+          method:'POST',
+          headers:{'Content-Type':'application/json'},
+          body: JSON.stringify(body)
+        });
+        if (r1.ok) return r1.json();
+      }catch(_) {}
+
+      // 2차: Netlify Functions 직접 호출 (route=login 가정)
+      const u = new URL('/.netlify/functions/api', location.origin);
+      u.searchParams.set('route','login');
+      const r2 = await fetch(u, {
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify(body)
+      });
+      return r2.json();
+    }
+
+    // 로그인 submit 핸들러
     document.addEventListener('DOMContentLoaded', function(){
-      // 이미 로그인 시 역할별 리다이렉트
-      const s = window.Auth?.getSession?.();
-      if(s){
-        location.replace(s.role === 'admin' ? 'admin.html' : 'staff.html');
-        return;
-      }
-
       const form = document.getElementById('loginForm');
+      const btn  = document.getElementById('loginBtn');
+      const err  = document.getElementById('err');
       if(!form) return;
 
-      form.addEventListener('submit', function(e){
+      form.addEventListener('submit', async function(e){
         e.preventDefault();
-        const email = form.querySelector('[name="email"]')?.value?.trim();
-        const password = form.querySelector('[name="password"]')?.value ?? "";
+        err.textContent = '';
+        btn.disabled = true;
+
+        const email = document.getElementById('email').value.trim();
+        const password = document.getElementById('password').value;
+
         try{
-          const session = window.Auth.login(email, password);
-          if(session.role === 'admin') location.href = 'admin.html';
-          else location.href = 'staff.html';
-        }catch(err){
-          alert(err.message || '로그인 실패');
+          const j = await loginRequest({ email, password });
+
+          if (!j || !j.ok) {
+            err.textContent = (j?.error === 'invalid_credentials')
+              ? '아이디 또는 비밀번호가 올바르지 않습니다.'
+              : (j?.error === 'email_and_password_required')
+                ? '이메일/비밀번호를 입력해주세요.'
+                : '로그인 실패: ' + (j?.error || 'unknown_error');
+            btn.disabled = false;
+            return;
+          }
+
+          // 성공: 사용자 정보 저장(비번 제거된 오브젝트)
+          localStorage.setItem('gdc_user', JSON.stringify(j.user));
+
+          // 역할별 이동
+          if (j.user.role === 'admin') location.replace('admin.html');
+          else location.replace('staff.html');
+
+        }catch(ex){
+          console.error(ex);
+          err.textContent = '서버 통신 오류가 발생했습니다.';
+          btn.disabled = false;
         }
       });
     });
