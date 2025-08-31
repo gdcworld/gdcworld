@@ -25,18 +25,18 @@ const safeJson = (str) => { try { return JSON.parse(str || '{}'); } catch { retu
 export async function handler(event) {
   if (event.httpMethod === 'OPTIONS') return send(204, {});
 
-  // 실제 path 계산
-  -  const rawUrl  = event.rawUrl ? new URL(event.rawUrl) : null;
--  const rawPath = rawUrl ? rawUrl.pathname : (event.path || '');
--  const path    = (rawPath || '').replace(/\/.netlify\/functions\/api/i, '') || '/';
-+  const rawUrl  = event.rawUrl ? new URL(event.rawUrl) : null;
-+  const rawPath = rawUrl ? rawUrl.pathname : (event.path || '');
-+  // ✅ 두 패턴 모두 정규화: "/.netlify/functions/api/..." 와 "/api/..."
-+  let path = (rawPath || '')
-+    .replace(/\/.netlify\/functions\/api/i, '')
-+    .replace(/^\/api/i, '');
-+  if (!path.startsWith('/')) path = '/' + path;
+  // 실제 path 계산 (프록시/직접호출 모두 지원)
+  const rawUrl  = event.rawUrl ? new URL(event.rawUrl) : null;
+  const rawPath = rawUrl ? rawUrl.pathname : (event.path || '');
 
+  let path = (rawPath || '')
+    .replace(/\/.netlify\/functions\/api/i, '')  // /.netlify/functions/api/... → ...
+    .replace(/^\/api/i, '');                     // /api/... → ...
+
+  if (!path || path === '') path = '/';
+  if (!path.startsWith('/')) path = '/' + path;
+
+  const method  = (event.httpMethod || 'GET').toUpperCase();
 
   // ───────── 디버그/헬스체크 ─────────
   // 1) 쿼리로 whoami: /.netlify/functions/api?__whoami=1
