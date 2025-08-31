@@ -21,10 +21,6 @@ export async function handler(event) {
       'Content-Type': 'application/json; charset=utf-8',
       'Access-Control-Allow-Origin': '*',
     },
-    body: JSON.stringify({
-      ok: true,
-      supabaseUrl: url,
-      projectRef: ref, // ← 이 값(서브도메인)이 실제로 붙어있는 Supabase 프로젝트 ref
-    }),
+    body: JSON.stringify({ ok: true, supabaseUrl: url, projectRef: ref }),
   };
 }
