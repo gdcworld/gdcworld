@@ -1,27 +1,93 @@
-// /assets/accounts.js  (Server REST API 연결판)
-// - role별 테이블/모달/검색/페이지네이션은 기존 UI 유지
-// - 목록: GET /api/accounts → role로 필터링
-// - 생성: POST /api/accounts  { name, email, password, role, ...extras(무시됨) }
-// - 수정: PATCH /api/accounts/:id  { name?, email?, role?, password? }
-// - 삭제: DELETE /api/accounts/:id
+// /assets/accounts.js  (Server REST API 연결판 - Netlify Functions 경로로 교체)
+// - 기존 UI(역할별 섹션, 모달, 검색/페이지네이션)는 유지
+// - 목록:  GET   /.netlify/functions/api/accounts
+// - 생성:  POST  /.netlify/functions/api/accounts        { name, email, password, role, ...extras(무시될 수 있음) }
+// - 조회:  GET   /.netlify/functions/api/accounts?id=:id
+// - 수정:  PATCH /.netlify/functions/api/accounts        { id, name?, email?, role?, password? }
+// - 삭제:  DELETE/.netlify/functions/api/accounts        { id }
 
 (() => {
   const $  = (s, r=document) => r.querySelector(s);
   const $$ = (s, r=document) => Array.from(r.querySelectorAll(s));
+
   const nowIso = () => new Date().toISOString();
-  const humanDate = (iso) => { try {
-    const d = new Date(iso); const y=d.getFullYear(), m=String(d.getMonth()+1).padStart(2,'0'), da=String(d.getDate()).padStart(2,'0'); return `${y}.${m}.${da}`;
-  } catch { return "-"; } };
+  const humanDate = (iso) => {
+    try { const d = new Date(iso);
+      const y=d.getFullYear(), m=String(d.getMonth()+1).padStart(2,'0'), da=String(d.getDate()).padStart(2,'0');
+      return `${y}.${m}.${da}`;
+    } catch { return "-"; }
+  };
   const escapeHtml = (s="") => s.replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]));
   const toast = (msg) => { const el=$("#toast"); if(!el) return; el.textContent=msg; el.classList.remove("hidden"); clearTimeout(el._t); el._t=setTimeout(()=>el.classList.add("hidden"),1600); };
 
-  // ===== 서버 API 래퍼 =====
+  // ===== 서버 API 래퍼 (경로 교체) =====
+  const FN_BASE = '/.netlify/functions/api/accounts';
+
   const API = {
-    async list()   { const r = await fetch('/api/accounts'); const j = await r.json(); return j.items || j; },
-    async create(p){ const r = await fetch('/api/accounts',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(p)}); const j=await r.json(); if(!r.ok) throw new Error(j.error||'create_failed'); return j; },
-    async get(id)  { const r = await fetch(`/api/accounts/${id}`); const j=await r.json(); if(!r.ok) throw new Error(j.error||'get_failed'); return j; },
-    async update(id,p){ const r = await fetch(`/api/accounts/${id}`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(p)}); const j=await r.json(); if(!r.ok) throw new Error(j.error||'update_failed'); return j; },
-    async remove(id){ const r = await fetch(`/api/accounts/${id}`,{method:'DELETE'}); const j=await r.json(); if(!r.ok) throw new Error(j.error||'delete_failed'); return j; },
+    async list(){
+      const r = await fetch(FN_BASE, { method:'GET' });
+      const j = await r.json();
+      if (!r.ok || j?.ok === false) throw new Error(j?.error || 'list_failed');
+      return j.items || j; // 서버가 {ok,items} 또는 배열/객체 둘 다 대응
+    },
+    async create(p){
+      const payload = {
+        name: (p.name||'').trim(),
+        email: String(p.email||'').trim().toLowerCase(),
+        password: String(p.password||''),
+        role: String(p.role||'').trim().toLowerCase(),
+        // 추가 필드(서버가 무시하더라도 보냄)
+        phone: p.phone || '',
+        status: p.status || 'active',
+        hospital: p.hospital || '',
+        workStatus: p.workStatus || '',
+        adminType: p.adminType || '',
+        ward: p.ward || '',
+        license: p.license || '',
+        branch: p.branch || '',
+        area: p.area || '',
+        position: p.position || ''
+      };
+      if (!payload.name || payload.name.length < 2) throw new Error('이름 최소 2자');
+      if (!payload.password || payload.password.length < 8) throw new Error('비밀번호 최소 8자');
+      if (!payload.email || !payload.role) throw new Error('이메일/역할 필수');
+
+      const r = await fetch(FN_BASE, {
+        method:'POST',
+        headers:{ 'Content-Type':'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const j = await r.json();
+      if (!r.ok || j?.ok === false) throw new Error(j?.error || 'create_failed');
+      return j.item || j;
+    },
+    async get(id){
+      const url = `${FN_BASE}?id=${encodeURIComponent(id)}`;
+      const r = await fetch(url, { method:'GET' });
+      const j = await r.json();
+      if (!r.ok || j?.ok === false) throw new Error(j?.error || 'get_failed');
+      return j.item || j;
+    },
+    async update(id, p){
+      const r = await fetch(FN_BASE, {
+        method:'PATCH',
+        headers:{ 'Content-Type':'application/json' },
+        body: JSON.stringify({ id, ...p })
+      });
+      const j = await r.json();
+      if (!r.ok || j?.ok === false) throw new Error(j?.error || 'update_failed');
+      return j.item || j;
+    },
+    async remove(id){
+      const r = await fetch(FN_BASE, {
+        method:'DELETE',
+        headers:{ 'Content-Type':'application/json' },
+        body: JSON.stringify({ id })
+      });
+      const j = await r.json();
+      if (!r.ok || j?.ok === false) throw new Error(j?.error || 'delete_failed');
+      return true;
+    }
   };
 
   // 역할별 컬럼(디자인 유지)
@@ -34,7 +100,7 @@
     vice:      [{ key:"hospital",   label:"병원" }, { key:"position",   label:"직위" }],
   };
 
-  // 모달에 붙일 역할별 입력필드(표시는 그대로, 서버는 추가필드 무시해도 OK)
+  // 모달에 붙일 역할별 입력필드(표시는 그대로, 서버는 추가필드 무시 가능)
   const roleExtraFields = {
     physio:    [{name:"hospital",label:"병원",type:"text"},{name:"workStatus",label:"근무여부",type:"text"}],
     ptadmin:   [{name:"hospital",label:"병원",type:"text"},{name:"adminType",label:"관리 구분",type:"text"}],
@@ -44,9 +110,9 @@
     vice:      [{name:"hospital",label:"병원",type:"text"},{name:"position",label:"직위",type:"text"}],
   };
 
-  function roleTitle(role){ return ({physio:"물리치료사",ptadmin:"PT관리자",nurse:"간호사",frontdesk:"원무",radiology:"방사선사",vice:"부원장"}[role]||role); }
+  const roleTitle = (role)=>({physio:"물리치료사",ptadmin:"PT관리자",nurse:"간호사",frontdesk:"원무",radiology:"방사선사",vice:"부원장"}[role]||role);
 
-  // ===== 모듈 렌더링 (한 역할 섹션) =====
+  // ===== 한 역할 섹션을 렌더 =====
   function renderModule(container){
     const role = container.dataset.role;
     container.innerHTML = `
@@ -86,7 +152,7 @@
     const $next  = $(".acc-next", container);
     const $page  = $(".acc-page", container);
 
-    // 헤더(디자인 유지) — 아이디 열은 이메일을 표시
+    // 헤더 구성
     $thead.innerHTML = `
       <tr style="text-align:left; border-bottom:1px solid #555;">
         <th style="padding:10px">번호</th>
@@ -103,6 +169,7 @@
     $create.addEventListener("click", ()=> openModalForCreate(state, reload));
     $prev.addEventListener("click", ()=>{ if(state.page>1){state.page--; draw();} });
     $next.addEventListener("click", ()=>{ const {totalPages}=getPaged(state); if(state.page<totalPages){state.page++; draw();} });
+
     $tbody.addEventListener("click", async (e)=>{
       const btn = e.target.closest("button[data-act]"); if(!btn) return;
       const id  = btn.dataset.id;
@@ -119,7 +186,6 @@
     // 서버 목록 로드
     async function reload(){
       const all = await API.list();
-      // 백엔드에서 role이 저장되도록 POST할 때 role을 함께 보냄.
       state.list = (Array.isArray(all)?all:all.items||[]).filter(a => (a.role||"") === role);
       draw();
     }
@@ -165,14 +231,21 @@
   }
 
   // ===== 모달: 생성/수정 =====
+  const collectForm = (form)=>{ const fd=new FormData(form); const o={}; for(const [k,v] of fd.entries()) o[k]=v; return o; };
   function mountExtraFields(role, target, values={}){
-    target.innerHTML = (roleExtraFields[role]||[]).map(f=>{
+    const defs = {
+      physio:    [{name:"hospital",label:"병원",type:"text"},{name:"workStatus",label:"근무여부",type:"text"}],
+      ptadmin:   [{name:"hospital",label:"병원",type:"text"},{name:"adminType",label:"관리 구분",type:"text"}],
+      nurse:     [{name:"ward",label:"소속 병동",type:"text"},{name:"license",label:"면허번호",type:"text"}],
+      frontdesk: [{name:"branch",label:"근무지점",type:"text"},{name:"area",label:"담당 구역",type:"text"}],
+      radiology: [{name:"license",label:"자격번호",type:"text"},{name:"workStatus",label:"근무여부",type:"text"}],
+      vice:      [{name:"hospital",label:"병원",type:"text"},{name:"position",label:"직위",type:"text"}],
+    }[role] || [];
+    target.innerHTML = defs.map(f=>{
       const val = values[f.name] ?? "";
       return `<label>${f.label}<input name="${f.name}" type="${f.type}" placeholder="${f.label}" value="${escapeHtml(val)}" /></label>`;
     }).join("");
   }
-
-  function collectForm(form){ const fd=new FormData(form); const o={}; for(const [k,v] of fd.entries()) o[k]=v; return o; }
 
   function openModalForCreate(state, onSaved){
     const modal=$("#account-modal"), form=$("#account-form"), title=$("#account-modal-title"), cancel=$("#account-cancel"), extras=$("#extra-fields");
@@ -187,14 +260,12 @@
       if(!data.password || !data.password2){ toast("비밀번호를 입력해주세요."); return; }
       if(data.password !== data.password2){ toast("비밀번호가 일치하지 않습니다."); return; }
 
-      // 서버 스키마: name, email, password, role (추가 필드는 현재 버전에서 무시됨)
       try{
         await API.create({
           name: data.name.trim(),
           email: data.email.trim(),
           password: data.password,
           role: state.role,
-          // UI는 유지되지만 서버는 아래 필드를 아직 저장하지 않음(확장 예정)
           phone: data.phone || "", status: data.status || "active",
           hospital: data.hospital||"", workStatus:data.workStatus||"",
           adminType:data.adminType||"", ward:data.ward||"", license:data.license||"",
@@ -214,7 +285,6 @@
     const modal=$("#account-modal"), form=$("#account-form"), title=$("#account-modal-title"), cancel=$("#account-cancel"), extras=$("#extra-fields");
     title.textContent = `[${state.role}] 계정 수정`; form.reset(); form.dataset.role=state.role;
 
-    // 기본값 주입 (서버 항목: id, name, email, role, createdAt/updatedAt)
     form.name.value  = item.name || "";
     form.email.value = item.email || "";
     form.phone.value = item.phone || "";
@@ -233,7 +303,6 @@
         email: (data.email||"").trim(),
         role:  state.role
       };
-      // 비밀번호를 입력했다면 변경
       if (data.password && data.password.trim()){
         if (!data.password2 || data.password !== data.password2){ toast("비밀번호가 일치하지 않습니다."); return; }
         patch.password = data.password;
@@ -251,7 +320,7 @@
     modal.classList.remove("hidden");
   }
 
-  // ===== 부팅 훅 =====
+  // ===== 부팅 =====
   function boot(root=document){ $$(".account-module", root).forEach(mod=>{ if(mod._inited) return; mod._inited=true; renderModule(mod); }); }
   window.__bootAccountsModules = boot;
   document.addEventListener("DOMContentLoaded", ()=> boot());
