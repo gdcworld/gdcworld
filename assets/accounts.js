@@ -1,11 +1,4 @@
-// /assets/accounts.js  (Server REST API 연결판 - Netlify Functions 경로로 교체)
-// - 기존 UI(역할별 섹션, 모달, 검색/페이지네이션)는 유지
-// - 목록:  GET   /.netlify/functions/api/accounts
-// - 생성:  POST  /.netlify/functions/api/accounts        { name, email, password, role, ...extras(무시될 수 있음) }
-// - 조회:  GET   /.netlify/functions/api/accounts?id=:id
-// - 수정:  PATCH /.netlify/functions/api/accounts        { id, name?, email?, role?, password? }
-// - 삭제:  DELETE/.netlify/functions/api/accounts        { id }
-
+// assets/accounts.js
 (() => {
   const $  = (s, r=document) => r.querySelector(s);
   const $$ = (s, r=document) => Array.from(r.querySelectorAll(s));
@@ -20,23 +13,33 @@
   const escapeHtml = (s="") => s.replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]));
   const toast = (msg) => { const el=$("#toast"); if(!el) return; el.textContent=msg; el.classList.remove("hidden"); clearTimeout(el._t); el._t=setTimeout(()=>el.classList.add("hidden"),1600); };
 
-  // ===== 서버 API 래퍼 (경로 교체) =====
-  const FN_BASE = '/.netlify/functions/api/accounts';
+  // ---- API helper: /api 우선 호출, 실패 시 /.netlify/functions 로 재시도
+  async function apiFetch(path, opts = {}) {
+    const baseHeaders = { 'Content-Type': 'application/json', ...(opts.headers||{}) };
+    const req = { ...opts, headers: baseHeaders };
+    let r = await fetch(`/api${path}`, req);
+    if (!r.ok) r = await fetch(`/.netlify/functions/api${path}`, req);
+    let j = null;
+    try { j = await r.json(); } catch {}
+    if (!r.ok || j?.ok === false) {
+      const msg = j?.message || j?.error || `request_failed (${path})`;
+      throw new Error(msg);
+    }
+    return j;
+  }
 
+  // ---- 서버 API (계정)
   const API = {
-    async list(){
-      const r = await fetch(FN_BASE, { method:'GET' });
-      const j = await r.json();
-      if (!r.ok || j?.ok === false) throw new Error(j?.error || 'list_failed');
-      return j.items || j; // 서버가 {ok,items} 또는 배열/객체 둘 다 대응
+    async list() {
+      const j = await apiFetch('/accounts', { method: 'GET' });
+      return j.items || j;
     },
-    async create(p){
+    async create(p) {
       const payload = {
         name: (p.name||'').trim(),
         email: String(p.email||'').trim().toLowerCase(),
         password: String(p.password||''),
         role: String(p.role||'').trim().toLowerCase(),
-        // 추가 필드(서버가 무시하더라도 보냄)
         phone: p.phone || '',
         status: p.status || 'active',
         hospital: p.hospital || '',
@@ -51,46 +54,20 @@
       if (!payload.name || payload.name.length < 2) throw new Error('이름 최소 2자');
       if (!payload.password || payload.password.length < 8) throw new Error('비밀번호 최소 8자');
       if (!payload.email || !payload.role) throw new Error('이메일/역할 필수');
-
-      const r = await fetch(FN_BASE, {
-        method:'POST',
-        headers:{ 'Content-Type':'application/json' },
-        body: JSON.stringify(payload)
-      });
-      const j = await r.json();
-      if (!r.ok || j?.ok === false) throw new Error(j?.error || 'create_failed');
+      const j = await apiFetch('/accounts', { method:'POST', body: JSON.stringify(payload) });
       return j.item || j;
     },
-    async get(id){
-      const url = `${FN_BASE}?id=${encodeURIComponent(id)}`;
-      const r = await fetch(url, { method:'GET' });
-      const j = await r.json();
-      if (!r.ok || j?.ok === false) throw new Error(j?.error || 'get_failed');
+    async update(id, p) {
+      const j = await apiFetch('/accounts', { method:'PATCH', body: JSON.stringify({ id, ...p }) });
       return j.item || j;
     },
-    async update(id, p){
-      const r = await fetch(FN_BASE, {
-        method:'PATCH',
-        headers:{ 'Content-Type':'application/json' },
-        body: JSON.stringify({ id, ...p })
-      });
-      const j = await r.json();
-      if (!r.ok || j?.ok === false) throw new Error(j?.error || 'update_failed');
-      return j.item || j;
-    },
-    async remove(id){
-      const r = await fetch(FN_BASE, {
-        method:'DELETE',
-        headers:{ 'Content-Type':'application/json' },
-        body: JSON.stringify({ id })
-      });
-      const j = await r.json();
-      if (!r.ok || j?.ok === false) throw new Error(j?.error || 'delete_failed');
+    async remove(id) {
+      await apiFetch('/accounts', { method:'DELETE', body: JSON.stringify({ id }) });
       return true;
     }
   };
 
-  // 역할별 컬럼(디자인 유지)
+  // ---- 역할별 컬럼/필드
   const roleColumns = {
     physio:    [{ key:"hospital",   label:"병원" }, { key:"workStatus", label:"근무여부" }],
     ptadmin:   [{ key:"hospital",   label:"병원" }, { key:"adminType",  label:"관리 구분" }],
@@ -99,20 +76,9 @@
     radiology: [{ key:"license",    label:"자격번호" }, { key:"workStatus", label:"근무여부" }],
     vice:      [{ key:"hospital",   label:"병원" }, { key:"position",   label:"직위" }],
   };
-
-  // 모달에 붙일 역할별 입력필드(표시는 그대로, 서버는 추가필드 무시 가능)
-  const roleExtraFields = {
-    physio:    [{name:"hospital",label:"병원",type:"text"},{name:"workStatus",label:"근무여부",type:"text"}],
-    ptadmin:   [{name:"hospital",label:"병원",type:"text"},{name:"adminType",label:"관리 구분",type:"text"}],
-    nurse:     [{name:"ward",label:"소속 병동",type:"text"},{name:"license",label:"면허번호",type:"text"}],
-    frontdesk: [{name:"branch",label:"근무지점",type:"text"},{name:"area",label:"담당 구역",type:"text"}],
-    radiology: [{name:"license",label:"자격번호",type:"text"},{name:"workStatus",label:"근무여부",type:"text"}],
-    vice:      [{name:"hospital",label:"병원",type:"text"},{name:"position",label:"직위",type:"text"}],
-  };
-
   const roleTitle = (role)=>({physio:"물리치료사",ptadmin:"PT관리자",nurse:"간호사",frontdesk:"원무",radiology:"방사선사",vice:"부원장"}[role]||role);
 
-  // ===== 한 역할 섹션을 렌더 =====
+  // ---- 섹션 렌더
   function renderModule(container){
     const role = container.dataset.role;
     container.innerHTML = `
@@ -127,7 +93,7 @@
         </div>
         <div class="table-wrap" style="margin-top:12px; overflow:auto;">
           <table class="acc-table" style="width:100%; border-collapse:collapse;">
-            <thead></thead><tbody></tbody>
+            <thead></thead><tbody id="accounts-tbody"></tbody>
           </table>
         </div>
         <div class="row" style="display:flex; justify-content:space-between; align-items:center; margin-top:10px;">
@@ -144,7 +110,7 @@
     const state = { role, list: [], q:"", page:1, perPage:10 };
 
     const $thead = $("thead", container);
-    const $tbody = $("tbody", container);
+    const $tbody = $("#accounts-tbody", container);
     const $search= $(".acc-search", container);
     const $create= $(".acc-create", container);
     const $count = $(".acc-count", container);
@@ -152,7 +118,6 @@
     const $next  = $(".acc-next", container);
     const $page  = $(".acc-page", container);
 
-    // 헤더 구성
     $thead.innerHTML = `
       <tr style="text-align:left; border-bottom:1px solid #555;">
         <th style="padding:10px">번호</th>
@@ -164,7 +129,6 @@
       </tr>
     `;
 
-    // 이벤트
     $search.addEventListener("input", ()=>{ state.q=$search.value.trim().toLowerCase(); state.page=1; draw(); });
     $create.addEventListener("click", ()=> openModalForCreate(state, reload));
     $prev.addEventListener("click", ()=>{ if(state.page>1){state.page--; draw();} });
@@ -183,10 +147,11 @@
       }
     });
 
-    // 서버 목록 로드
     async function reload(){
       const all = await API.list();
-      state.list = (Array.isArray(all)?all:all.items||[]).filter(a => (a.role||"") === role);
+      state.list = (Array.isArray(all)?all:all.items||[])
+        .filter(a => (a.role||"") === role)
+        .sort((a,b) => (b.created_at||'').localeCompare(a.created_at||''));
       draw();
     }
 
@@ -215,7 +180,7 @@
           ${ (roleColumns[role]||[]).map(c=>`<td style="padding:10px">${escapeHtml(item[c.key]||"-")}</td>`).join("") }
           <td style="padding:10px">${escapeHtml(item.email||"-")}</td>
           <td style="padding:10px">${escapeHtml(item.name||"-")}</td>
-          <td style="padding:10px">${humanDate(item.createdAt||item.updatedAt||nowIso())}</td>
+          <td style="padding:10px">${humanDate(item.createdAt||item.updatedAt||item.created_at||nowIso())}</td>
           <td style="padding:10px">
             <button class="btn" data-act="edit" data-id="${item.id}">수정</button>
             <button class="btn ghost" data-act="del" data-id="${item.id}">삭제</button>
@@ -226,29 +191,14 @@
       $page.textContent  = `${state.page} / ${totalPages}`;
     }
 
-    // 최초 로드
     reload();
   }
 
-  // ===== 모달: 생성/수정 =====
   const collectForm = (form)=>{ const fd=new FormData(form); const o={}; for(const [k,v] of fd.entries()) o[k]=v; return o; };
-  function mountExtraFields(role, target, values={}){
-    const defs = {
-      physio:    [{name:"hospital",label:"병원",type:"text"},{name:"workStatus",label:"근무여부",type:"text"}],
-      ptadmin:   [{name:"hospital",label:"병원",type:"text"},{name:"adminType",label:"관리 구분",type:"text"}],
-      nurse:     [{name:"ward",label:"소속 병동",type:"text"},{name:"license",label:"면허번호",type:"text"}],
-      frontdesk: [{name:"branch",label:"근무지점",type:"text"},{name:"area",label:"담당 구역",type:"text"}],
-      radiology: [{name:"license",label:"자격번호",type:"text"},{name:"workStatus",label:"근무여부",type:"text"}],
-      vice:      [{name:"hospital",label:"병원",type:"text"},{name:"position",label:"직위",type:"text"}],
-    }[role] || [];
-    target.innerHTML = defs.map(f=>{
-      const val = values[f.name] ?? "";
-      return `<label>${f.label}<input name="${f.name}" type="${f.type}" placeholder="${f.label}" value="${escapeHtml(val)}" /></label>`;
-    }).join("");
-  }
 
   function openModalForCreate(state, onSaved){
-    const modal=$("#account-modal"), form=$("#account-form"), title=$("#account-modal-title"), cancel=$("#account-cancel"), extras=$("#extra-fields");
+    const modal=$("#account-modal"), form=$("#account-form"), title=$("#account-modal-title"),
+          cancel=$("#account-cancel"), extras=$("#extra-fields");
     title.textContent = `[${state.role}] 계정 생성`; form.reset(); form.dataset.role=state.role;
     mountExtraFields(state.role, extras);
     const close=()=>modal.classList.add("hidden"); cancel.onclick=close;
@@ -282,7 +232,8 @@
   }
 
   function openModalForEdit(state, item, onSaved){
-    const modal=$("#account-modal"), form=$("#account-form"), title=$("#account-modal-title"), cancel=$("#account-cancel"), extras=$("#extra-fields");
+    const modal=$("#account-modal"), form=$("#account-form"), title=$("#account-modal-title"),
+          cancel=$("#account-cancel"), extras=$("#extra-fields");
     title.textContent = `[${state.role}] 계정 수정`; form.reset(); form.dataset.role=state.role;
 
     form.name.value  = item.name || "";
@@ -320,7 +271,21 @@
     modal.classList.remove("hidden");
   }
 
-  // ===== 부팅 =====
+  function mountExtraFields(role, target, values={}) {
+    const defs = {
+      physio:    [{name:"hospital",label:"병원",type:"text"},{name:"workStatus",label:"근무여부",type:"text"}],
+      ptadmin:   [{name:"hospital",label:"병원",type:"text"},{name:"adminType",label:"관리 구분",type:"text"}],
+      nurse:     [{name:"ward",label:"소속 병동",type:"text"},{name:"license",label:"면허번호",type:"text"}],
+      frontdesk: [{name:"branch",label:"근무지점",type:"text"},{name:"area",label:"담당 구역",type:"text"}],
+      radiology: [{name:"license",label:"자격번호",type:"text"},{name:"workStatus",label:"근무여부",type:"text"}],
+      vice:      [{name:"hospital",label:"병원",type:"text"},{name:"position",label:"직위",type:"text"}],
+    }[role] || [];
+    target.innerHTML = defs.map(f=>{
+      const val = values[f.name] ?? "";
+      return `<label>${f.label}<input name="${f.name}" type="${f.type}" placeholder="${f.label}" value="${escapeHtml(val)}" /></label>`;
+    }).join("");
+  }
+
   function boot(root=document){ $$(".account-module", root).forEach(mod=>{ if(mod._inited) return; mod._inited=true; renderModule(mod); }); }
   window.__bootAccountsModules = boot;
   document.addEventListener("DOMContentLoaded", ()=> boot());
