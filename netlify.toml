@@ -1,13 +1,23 @@
+# netlify.toml (정리본)
+
 [build]
   publish = "."
   functions = "netlify/functions"
 
-[[redirects]]
-  from = "/api/*"
-  to = "/.netlify/functions/api/:splat"
-  status = 200
+[functions]
+  node_bundler = "esbuild"
 
+[build.environment]
+  NODE_VERSION = "18"
+
+# 더 구체적인 라우트 먼저
 [[redirects]]
   from = "/api/whoami"
   to   = "/.netlify/functions/whoami"
+  status = 200
+
+# API 프록시
+[[redirects]]
+  from = "/api/*"
+  to   = "/.netlify/functions/api/:splat"
   status = 200

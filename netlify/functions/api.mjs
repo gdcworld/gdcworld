@@ -26,15 +26,16 @@ export async function handler(event) {
   if (event.httpMethod === 'OPTIONS') return send(204, {});
 
   // 실제 path 계산 (프록시/직접호출 모두 지원)
-  const rawUrl  = event.rawUrl ? new URL(event.rawUrl) : null;
-  const rawPath = rawUrl ? rawUrl.pathname : (event.path || '');
+const rawUrl  = event.rawUrl ? new URL(event.rawUrl) : null;
+const rawPath = rawUrl ? rawUrl.pathname : (event.path || '');
 
-  let path = (rawPath || '')
-    .replace(/\/.netlify\/functions\/api/i, '')  // /.netlify/functions/api/... → ...
-    .replace(/^\/api/i, '');                     // /api/... → ...
+// /.netlify/functions/api/...  또는 /api/...  모두 제거
+let path = (rawPath || '')
+  .replace(/\/.netlify\/functions\/api/i, '')
+  .replace(/^\/api/i, '');
 
-  if (!path || path === '') path = '/';
-  if (!path.startsWith('/')) path = '/' + path;
+if (!path || path === '') path = '/';
+if (!path.startsWith('/')) path = '/' + path;
 
   const method  = (event.httpMethod || 'GET').toUpperCase();
 
