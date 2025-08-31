@@ -25,6 +25,7 @@ const send = (statusCode, data) => ({
   body: JSON.stringify(data)
 });
 
+// JSON 파서
 function safeJson(str) {
   try { return JSON.parse(str || '{}'); } catch { return null; }
 }
@@ -32,9 +33,11 @@ function safeJson(str) {
 export async function handler(event) {
   if (event.httpMethod === 'OPTIONS') return send(204, {});
 
-  // path: "/.netlify/functions/api/...":
-  const path = (event.path || '').replace(/\/.netlify\/functions\/api/i, '') || '/';
-  const method = event.httpMethod.toUpperCase();
+  // Netlify에서 넘어오는 실제 경로 안전하게 계산
+  const rawPath = event.rawUrl ? new URL(event.rawUrl).pathname : (event.path || '');
+  // "/.netlify/functions/api/xxx" -> "/xxx"
+  const path = (rawPath || '').replace(/\/.netlify\/functions\/api/i, '') || '/';
+  const method = (event.httpMethod || 'GET').toUpperCase();
 
   try {
     // --- 디버그: 현재 함수가 바라보는 Supabase URL/프로젝트 ref 확인 ---
@@ -43,18 +46,12 @@ export async function handler(event) {
       const url = process.env.SUPABASE_URL || '';
       const m = url.match(/^https:\/\/([^.]+)\.supabase\.co/i);
       const ref = m ? m[1] : null; // 프로젝트 ref (서브도메인)
-      return send(200, {
-        ok: true,
-        supabaseUrl: url,
-        projectRef: ref
-      });
+      return send(200, { ok: true, supabaseUrl: url, projectRef: ref });
     }
 
     // 헬스체크
-    if (path === '/' || path === '/health') {
-      if (path === '/health') return send(200, { ok: true });
-      if (path === '/')      return send(404, { ok: false, message: 'Not Found' });
-    }
+    if (path === '/health' && method === 'GET') return send(200, { ok: true });
+    if (path === '/' && method === 'GET')      return send(404, { ok: false, message: 'Not Found' });
 
     // ----- 로그인 -----
     if (path === '/login' && method === 'POST') {
@@ -89,7 +86,7 @@ export async function handler(event) {
 
       // 생성
       if (method === 'POST') {
-        const { email, password, role } = safeJson(event.body) || {};
+        const { email, password, role, name } = safeJson(event.body) || {};
         if (!email || !password || !role) return send(400, { ok: false, message: 'email/password/role 필요' });
         if (!ALLOWED_ROLES.includes(role)) return send(400, { ok: false, message: '허용되지 않은 role' });
 
@@ -98,7 +95,7 @@ export async function handler(event) {
 
         const { data, error } = await supabase
           .from('accounts')
-          .insert([{ email: emailNorm, password_hash, role }])
+          .insert([{ email: emailNorm, password_hash, role, name: name || null }])
           .select('id,email,role,created_at')
           .single();
 
@@ -108,11 +105,12 @@ export async function handler(event) {
 
       // 수정
       if (method === 'PATCH') {
-        const { id, email, password, role } = safeJson(event.body) || {};
+        const { id, email, password, role, name } = safeJson(event.body) || {};
         if (!id) return send(400, { ok: false, message: 'id 필요' });
 
         const updates = {};
         if (email) updates.email = String(email).toLowerCase();
+        if (name)  updates.name  = name;
         if (role) {
           if (!ALLOWED_ROLES.includes(role)) return send(400, { ok: false, message: '허용되지 않은 role' });
           updates.role = role;
@@ -143,7 +141,7 @@ export async function handler(event) {
       return send(405, { ok: false, message: 'Method Not Allowed' });
     }
 
-    return send(404, { ok: false, message: 'Not Found' });
+    return send(404, { ok: false, message: 'Not Found', route: path });
   } catch (e) {
     console.error(e);
     return send(500, { ok: false, message: e?.message || 'Server error' });
