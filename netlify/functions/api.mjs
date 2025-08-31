@@ -34,24 +34,32 @@ export async function handler(event) {
   if (event.httpMethod === 'OPTIONS') return send(204, {});
 
   // Netlify에서 넘어오는 실제 경로 안전하게 계산
-  const rawPath = event.rawUrl ? new URL(event.rawUrl).pathname : (event.path || '');
+  const rawUrl  = event.rawUrl ? new URL(event.rawUrl) : null;
+  const rawPath = rawUrl ? rawUrl.pathname : (event.path || '');
   // "/.netlify/functions/api/xxx" -> "/xxx"
-  const path = (rawPath || '').replace(/\/.netlify\/functions\/api/i, '') || '/';
-  const method = (event.httpMethod || 'GET').toUpperCase();
+  const path    = (rawPath || '').replace(/\/.netlify\/functions\/api/i, '') || '/';
+  const method  = (event.httpMethod || 'GET').toUpperCase();
+
+  // 🔍 디버그 1) 쿼리 파라미터로 확인: /.netlify/functions/api?__whoami=1
+  if (rawUrl && rawUrl.searchParams.get('__whoami') === '1') {
+    const url = process.env.SUPABASE_URL || '';
+    const m   = url.match(/^https:\/\/([^.]+)\.supabase\.co/i);
+    const ref = m ? m[1] : null;
+    return send(200, { ok: true, supabaseUrl: url, projectRef: ref });
+  }
 
   try {
-    // --- 디버그: 현재 함수가 바라보는 Supabase URL/프로젝트 ref 확인 ---
-    // 사용법: https://gdcworld.co.kr/.netlify/functions/api/whoami
+    // 🔍 디버그 2) 라우트로 확인: /.netlify/functions/api/whoami
     if (path === '/whoami' && method === 'GET') {
       const url = process.env.SUPABASE_URL || '';
-      const m = url.match(/^https:\/\/([^.]+)\.supabase\.co/i);
-      const ref = m ? m[1] : null; // 프로젝트 ref (서브도메인)
+      const m   = url.match(/^https:\/\/([^.]+)\.supabase\.co/i);
+      const ref = m ? m[1] : null;
       return send(200, { ok: true, supabaseUrl: url, projectRef: ref });
     }
 
     // 헬스체크
     if (path === '/health' && method === 'GET') return send(200, { ok: true });
-    if (path === '/' && method === 'GET')      return send(404, { ok: false, message: 'Not Found' });
+    if (path === '/'       && method === 'GET') return send(404, { ok: false, message: 'Not Found' });
 
     // ----- 로그인 -----
     if (path === '/login' && method === 'POST') {
@@ -91,7 +99,7 @@ export async function handler(event) {
         if (!ALLOWED_ROLES.includes(role)) return send(400, { ok: false, message: '허용되지 않은 role' });
 
         const password_hash = await bcrypt.hash(password, 10);
-        const emailNorm = String(email).toLowerCase();
+        const emailNorm     = String(email).toLowerCase();
 
         const { data, error } = await supabase
           .from('accounts')
