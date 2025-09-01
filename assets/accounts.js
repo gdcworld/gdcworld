@@ -246,60 +246,80 @@
     modal.classList.remove("hidden");
   }
 
-  function openModalForEdit(state, item, onSaved){
-    const modal=$("#account-modal"), form=$("#account-form"), title=$("#account-modal-title"),
-          cancel=$("#account-cancel"), extras=$("#extra-fields");
-    title.textContent = `[${state.role}] 계정 수정`; form.reset(); form.dataset.role=state.role;
+// 교체: assets/accounts.js 안의 openModalForEdit 전체
+function openModalForEdit(state, item, onSaved){
+  const modal=$("#account-modal"), form=$("#account-form"), title=$("#account-modal-title"),
+        cancel=$("#account-cancel"), extras=$("#extra-fields");
+  title.textContent = `[${state.role}] 계정 수정`; form.reset(); form.dataset.role=state.role;
 
-    form.name.value  = item.name || "";
-    form.email.value = item.email || "";
-    form.phone.value = item.phone || "";
-    form.status.value= item.status || "active";
+  // 기존 값 채워넣기
+  form.name.value   = item.name   || "";
+  form.email.value  = item.email  || "";
+  form.phone.value  = item.phone  || "";
+  form.status.value = item.status || "active";
 
-    // 현재 계정의 역할을 셀렉트에 반영 (없으면 탭 역할)
-    if (form.role) form.role.value = item.role || state.role;
+  // 역할 셀렉트
+  if (form.role) form.role.value = item.role || state.role;
 
-    // 역할 기준으로 추가필드 렌더 + 변경 시 갱신
-    const currentRole = form.role?.value || state.role;
-    mountExtraFields(currentRole, extras, item);
-    form.role?.addEventListener('change', () => {
-      mountExtraFields(form.role.value, extras, item);
-    });
+  // 역할별 추가 필드 마운트 + 값 바인딩
+  const currentRole = form.role?.value || state.role;
+  mountExtraFields(currentRole, extras, item);
+  form.role?.addEventListener('change', () => {
+    mountExtraFields(form.role.value, extras, item);
+  });
 
-    const close=()=>modal.classList.add("hidden"); cancel.onclick=close;
+  const close=()=>modal.classList.add("hidden"); 
+  cancel.onclick=close;
 
-    form.onsubmit = async (e)=>{
-      e.preventDefault();
-      const data = collectForm(form);
-      if(!data.name){ toast("이름은 필수입니다."); return; }
+  form.onsubmit = async (e)=>{
+    e.preventDefault();
+    const data = collectForm(form);
+    if(!data.name){ toast("이름은 필수입니다."); return; }
 
-      const patch = {
-        name: data.name.trim(),
-        email: (data.email||"").trim()
-      };
+    const patch = {
+      // 기본 필드
+      name: (data.name||"").trim(),
+      email: (data.email||"").trim(),
+      phone: data.phone ?? "",
+      status: data.status ?? "",
 
-      // 비밀번호 변경 (선택)
-      if (data.password && data.password.trim()){
-        if (!data.password2 || data.password !== data.password2){ toast("비밀번호가 일치하지 않습니다."); return; }
-        patch.password = data.password;
-      }
+      // 역할(선택 변경)
+      ...(data.role && data.role.trim() ? { role: data.role.trim().toLowerCase() } : {}),
 
-      // 역할 변경 (선택)
-      if (data.role && data.role.trim()) {
-        patch.role = data.role.trim().toLowerCase();
-      }
+      // 비번(선택 변경)
+      ...(data.password && data.password.trim() ? (() => {
+        if (!data.password2 || data.password !== data.password2){
+          toast("비밀번호가 일치하지 않습니다."); 
+          throw new Error("password_mismatch");
+        }
+        return { password: data.password };
+      })() : {}),
 
-      try{
-        await API.update(item.id, patch);
-        toast("수정되었습니다.");
-        if(form.password) form.password.value="";
-        if(form.password2) form.password2.value="";
-        close(); onSaved?.();
-      } catch(err){ toast("수정 실패: "+err.message); }
+      // 역할별 추가 필드들(있으면 함께 업데이트)
+      hospital:  data.hospital  ?? "",
+      workStatus:data.workStatus?? "",
+      adminType: data.adminType ?? "",
+      ward:      data.ward      ?? "",
+      license:   data.license   ?? "",
+      branch:    data.branch    ?? "",
+      area:      data.area      ?? "",
+      position:  data.position  ?? ""
     };
 
-    modal.classList.remove("hidden");
-  }
+    try{
+      await API.update(item.id, patch);
+      toast("수정되었습니다.");
+      if(form.password) form.password.value="";
+      if(form.password2) form.password2.value="";
+      close(); onSaved?.();
+    } catch(err){
+      if (err.message !== "password_mismatch") toast("수정 실패: "+err.message);
+    }
+  };
+
+  modal.classList.remove("hidden");
+}
+
 
   function mountExtraFields(role, target, values={}) {
     const defs = {
