@@ -7,7 +7,7 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE // 서버 전용 키
 );
 
-// 허용 역할
+// 허용 역할 (프론트의 드롭다운과 1:1 대응)
 const ALLOWED_ROLES = [
   'admin','staff','member','physio','ptadmin','nurse','frontdesk','radiology','vice'
 ];
@@ -22,20 +22,46 @@ const headers = {
 const send = (statusCode, data) => ({ statusCode, headers, body: JSON.stringify(data) });
 const safeJson = (str) => { try { return JSON.parse(str || '{}'); } catch { return null; } };
 
+// DB ↔ 응답 필드 매핑 (snake_case → camelCase)
+// created_at은 표기 유지(프론트에서 그대로 사용)
+const toCamel = (row = {}) => ({
+  id: row.id,
+  email: row.email,
+  role: row.role,
+  created_at: row.created_at,
+  name: row.name ?? null,
+  phone: row.phone ?? null,
+  status: row.status ?? null,
+  hospital: row.hospital ?? null,
+  workStatus: row.work_status ?? null,
+  adminType: row.admin_type ?? null,
+  ward: row.ward ?? null,
+  license: row.license ?? null,
+  branch: row.branch ?? null,
+  area: row.area ?? null,
+  position: row.position ?? null,
+});
+
+// SELECT 공통 목록 (가독성을 위해 상수화)
+const ACCOUNT_SELECT = `
+  id, email, role, created_at,
+  name, phone, status,
+  hospital, work_status, admin_type, ward, license, branch, area, position
+`;
+
 export async function handler(event) {
   if (event.httpMethod === 'OPTIONS') return send(204, {});
 
   // 실제 path 계산 (프록시/직접호출 모두 지원)
-const rawUrl  = event.rawUrl ? new URL(event.rawUrl) : null;
-const rawPath = rawUrl ? rawUrl.pathname : (event.path || '');
+  const rawUrl  = event.rawUrl ? new URL(event.rawUrl) : null;
+  const rawPath = rawUrl ? rawUrl.pathname : (event.path || '');
 
-// /.netlify/functions/api/...  또는 /api/...  모두 제거
-let path = (rawPath || '')
-  .replace(/\/.netlify\/functions\/api/i, '')
-  .replace(/^\/api/i, '');
-
-if (!path || path === '') path = '/';
-if (!path.startsWith('/')) path = '/' + path;
+  // /.netlify/functions/api/...  또는 /api/...  모두 제거
+  let path = (rawPath || '')
+    .replace(/\/.netlify\/functions\/api/i, '')
+    .replace(/^\/api/i, '');
+  if (!path || path === '') path = '/';
+  if (!path.startsWith('/')) path = '/' + path;
 
   const method  = (event.httpMethod || 'GET').toUpperCase();
 
@@ -88,57 +114,102 @@ if (!path.startsWith('/')) path = '/' + path;
     // ───────── 계정 CRUD ─────────
     // /api/accounts
     if (path === '/accounts') {
+      // 목록
       if (method === 'GET') {
         const { data, error } = await supabase
           .from('accounts')
-          .select('id,email,role,created_at')
+          .select(ACCOUNT_SELECT)
           .order('created_at', { ascending:false });
         if (error) return send(500, { ok:false, message:error.message });
-        return send(200, { ok:true, items:data });
+        return send(200, { ok:true, items: (data || []).map(toCamel) });
       }
 
+      // 생성
       if (method === 'POST') {
-        const { email, password, role, name } = safeJson(event.body) || {};
+        const body = safeJson(event.body) || {};
+        const {
+          email, password, role, name,
+          phone, status,
+          hospital, workStatus, adminType, ward, license, branch, area, position
+        } = body;
+
         if (!email || !password || !role) return send(400, { ok:false, message:'email/password/role 필요' });
         if (!ALLOWED_ROLES.includes(role)) return send(400, { ok:false, message:'허용되지 않은 role' });
 
         const password_hash = await bcrypt.hash(password, 10);
         const emailNorm = String(email).toLowerCase();
 
+        const insertRow = {
+          email: emailNorm,
+          password_hash,
+          role,
+          name: name || null,
+          phone: phone || null,
+          status: status || null,
+          hospital: hospital || null,
+          work_status: workStatus || null,
+          admin_type: adminType || null,
+          ward: ward || null,
+          license: license || null,
+          branch: branch || null,
+          area: area || null,
+          position: position || null,
+        };
+
         const { data, error } = await supabase
           .from('accounts')
-          .insert([{ email:emailNorm, password_hash, role, name: name || null }])
-          .select('id,email,role,created_at')
+          .insert([insertRow])
+          .select(ACCOUNT_SELECT)
           .single();
 
         if (error) return send(400, { ok:false, message:error.message });
-        return send(200, { ok:true, item:data });
+        return send(200, { ok:true, item: toCamel(data) });
       }
 
+      // 수정
       if (method === 'PATCH') {
-        const { id, email, password, role, name } = safeJson(event.body) || {};
+        const body = safeJson(event.body) || {};
+        const { id } = body;
         if (!id) return send(400, { ok:false, message:'id 필요' });
+
+        const {
+          email, password, role, name,
+          phone, status,
+          hospital, workStatus, adminType, ward, license, branch, area, position
+        } = body;
 
         const updates = {};
         if (email) updates.email = String(email).toLowerCase();
-        if (name)  updates.name  = name;
+        if (name !== undefined) updates.name = name;
         if (role) {
           if (!ALLOWED_ROLES.includes(role)) return send(400, { ok:false, message:'허용되지 않은 role' });
           updates.role = role;
         }
         if (password) updates.password_hash = await bcrypt.hash(password, 10);
 
+        if (phone !== undefined)      updates.phone       = phone;
+        if (status !== undefined)     updates.status      = status;
+        if (hospital !== undefined)   updates.hospital    = hospital;
+        if (workStatus !== undefined) updates.work_status = workStatus;
+        if (adminType !== undefined)  updates.admin_type  = adminType;
+        if (ward !== undefined)       updates.ward        = ward;
+        if (license !== undefined)    updates.license     = license;
+        if (branch !== undefined)     updates.branch      = branch;
+        if (area !== undefined)       updates.area        = area;
+        if (position !== undefined)   updates.position    = position;
+
         const { data, error } = await supabase
           .from('accounts')
           .update(updates)
           .eq('id', id)
-          .select('id,email,role,created_at')
+          .select(ACCOUNT_SELECT)
           .single();
 
         if (error) return send(400, { ok:false, message:error.message });
-        return send(200, { ok:true, item:data });
+        return send(200, { ok:true, item: toCamel(data) });
       }
 
+      // 삭제
       if (method === 'DELETE') {
         const { id } = safeJson(event.body) || {};
         if (!id) return send(400, { ok:false, message:'id 필요' });
