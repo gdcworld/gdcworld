@@ -1,14 +1,83 @@
 // assets/app.js (GDC World Admin)
 // 역할별 계정 관리 + 파트너 병원 + 카테고리
+// ✅ 변경사항 요약:
+// 1) ROLE_ALLOWED_VIEWS: 역할별 허용 패널 정의 (nurse/physio/frontdesk/admin)
+// 2) applyRoleVisibilityAndDefault(): 허용되지 않은 메뉴 숨기고, 첫 허용 패널 자동 진입
+// 3) activate(): 허용되지 않은 패널로 이동 시 첫 허용 패널로 보정(가드)
+// ※ HTML/CSS는 변경 없음
 
 (function(){
   /* ============ 공통 유틸 ============ */
   function qs(s, el=document){ return el.querySelector(s); }
   function qsa(s, el=document){ return Array.from(el.querySelectorAll(s)); }
 
+  /* ============ 역할별 허용 패널 정의 ============ */
+  // admin: 빈 배열 = 모두 허용
+  const ROLE_ALLOWED_VIEWS = {
+    nurse:     ['consumables-main', 'drugs-main'],   // 간호사 → 소모품, 의약품
+    physio:    ['noncovered-dosu', 'revisit'],       // 물리치료사 → 비급여치료(도수), 재진율
+    frontdesk: ['closing'],                           // 원무 → 마감일지
+    admin:     []                                     // 관리자 → 전체 허용
+  };
+
+  function currentRole(){
+    return (window.Auth?.currentRole?.()) || 'member';
+  }
+  function isAllowedView(viewId){
+    const role = currentRole();
+    const allow = ROLE_ALLOWED_VIEWS[role] || [];
+    return (allow.length === 0) || allow.includes(viewId);
+  }
+  function firstAllowedView(){
+    // 현재 DOM에서 표시 상태가 '숨김이 아닌' 것들 중 첫 번째
+    const btn =
+      document.querySelector('.subitem[data-view]:not([style*="display: none"])') ||
+      document.querySelector('.nav > button[data-view]:not([style*="display: none"])');
+    return btn?.getAttribute('data-view') || null;
+  }
+
+  // 허용되지 않은 메뉴/패널을 숨기고, 첫 허용 패널을 자동으로 오픈
+  function applyRoleVisibilityAndDefault(){
+    const role = currentRole();
+    const allow = ROLE_ALLOWED_VIEWS[role] || [];
+    const allowAll = (allow.length === 0);
+    const allowSet = new Set(allow);
+
+    // 서브메뉴 숨김
+    document.querySelectorAll('.subitem[data-view]').forEach(btn => {
+      const id = btn.getAttribute('data-view');
+      const ok = allowAll || allowSet.has(id);
+      btn.style.display = ok ? '' : 'none';
+    });
+
+    // 하위가 모두 숨김이면 nav-group 자체 숨김
+    document.querySelectorAll('.nav-group').forEach(group => {
+      const anyVisible = Array.from(group.querySelectorAll('.subitem[data-view]'))
+        .some(b => b.style.display !== 'none');
+      group.style.display = anyVisible ? '' : 'none';
+    });
+
+    // 단일 상위 버튼도 동일 처리
+    document.querySelectorAll('.nav > button[data-view]').forEach(btn => {
+      const id = btn.getAttribute('data-view');
+      const ok = allowAll || allowSet.has(id);
+      btn.style.display = ok ? '' : 'none';
+    });
+
+    // 패널들 미리 가려놓기(안전)
+    document.querySelectorAll('[data-panel]').forEach(p => {
+      const id = p.getAttribute('data-panel');
+      const ok = allowAll || allowSet.has(id);
+      if (!ok) p.classList.add('hidden');
+    });
+
+    // 첫 허용 패널 자동 진입
+    const first = firstAllowedView();
+    if (first) activate(first);
+  }
+
   /* ============ API 어댑터 (REST /accounts) ============ */
   const API_BASE = '/.netlify/functions/api';
-
   const API = {
     async listAccountsAll() {
       const res = await fetch(`${API_BASE}/accounts`, { method:'GET' });
@@ -48,10 +117,22 @@
     }
   };
 
-  /* ============ 네비 전환 ============ */
+  /* ============ 네비 전환 (역할 가드 포함) ============ */
   function activate(viewId){
+    // 허용되지 않은 패널이면 첫 허용 패널로 보정
+    if (!isAllowedView(viewId)) {
+      const fallback = firstAllowedView();
+      if (fallback) viewId = fallback;
+    }
     qsa('.nav button').forEach(btn => btn.classList.toggle('active', btn.dataset.view===viewId));
     qsa('[data-panel]').forEach(p => p.classList.toggle('hidden', p.dataset.panel!==viewId));
+    // 계정 모듈 패널이면 부트
+    const panel=qs(`[data-panel="${viewId}"]`);
+    if(panel && panel.querySelector('.account-module')){
+      window.__bootAccountsModules(panel);
+    }
+    // 파트너 패널이면 렌더
+    if (viewId==='partners') renderPartners();
   }
 
   /* ============ 파트너 병원 (원래 있던 기능) ============ */
@@ -170,20 +251,16 @@
   /* ============ Admin 초기화 ============ */
   window.AdminUI={
     init(){
+      // 역할별 표시/숨김 먼저 적용 + 첫 허용 패널 자동 진입
+      applyRoleVisibilityAndDefault();
+
+      // 클릭 시 패널 전환(허용 가드 포함)
       qsa('.nav button').forEach(btn=>{
         btn.addEventListener('click',()=>{
           const v=btn.dataset.view;
           activate(v);
-          if(v==='partners') renderPartners();
-          // accounts-xxx 패널이면 부트 실행
-          const panel=qs(`[data-panel="${v}"]`);
-          if(panel && panel.querySelector('.account-module')){
-            window.__bootAccountsModules(panel);
-          }
         });
       });
-      // 첫 화면은 파트너
-      activate('partners'); renderPartners();
     }
   };
 })();
