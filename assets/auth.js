@@ -44,13 +44,20 @@
   }
 
   const Auth = {
-    async login(email, password){
-      if (!email || !password) throw new Error('이메일/비밀번호를 입력하세요.');
-      const user = await apiLogin(String(email).toLowerCase(), password);
-      saveSession(user);
-      // ★ 모든 역할을 admin.html로 보냄 (역할별 메뉴는 app.js가 제어)
-      location.replace('admin.html');
-    },
+  async login(email, password){
+    if (!email || !password) throw new Error('이메일/비밀번호를 입력하세요.');
+    const user = await apiLogin(String(email).toLowerCase(), password);
+
+    // ✅ role을 무조건 소문자+trim으로 통일
+    user.role = (user.role || '').toLowerCase().trim();
+
+    saveSession(user);
+
+    // ★ 모든 역할을 admin.html로 보냄 (역할별 메뉴는 app.js가 제어)
+    location.replace('admin.html');
+  },
+  ...
+}
 
     logout(){
       localStorage.removeItem(LS_KEY);
@@ -73,8 +80,8 @@
 
     currentRole(){
       const s = loadSession();
-      return s?.user?.role || null;
-    },
+      return (s?.user?.role || '').toLowerCase().trim() || null;
+}
 
     currentUserEmail(){
       const s = loadSession();
