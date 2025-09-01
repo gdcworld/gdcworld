@@ -386,6 +386,23 @@ function showPanel(id){
         <option value="inactive">비활성</option>
       </select>
     </label>
+
+    <!-- ▼▼ 추가: 권한(역할) 선택 -->
+    <label>권한(역할)
+      <select name="role" required>
+        <option value="physio">물리치료사</option>
+        <option value="ptadmin">PT관리자</option>
+        <option value="nurse">간호사</option>
+        <option value="frontdesk">원무</option>
+        <option value="radiology">방사선사</option>
+        <option value="vice">부원장</option>
+        <option value="staff">스태프</option>
+        <option value="member">멤버</option>
+        <option value="admin">관리자</option>
+      </select>
+    </label>
+    <!-- ▲▲ 추가 끝 -->
+
   </div>
 
   <!-- ✅ 역할별 추가 필드가 동적으로 주입되는 영역 (필수) -->

@@ -200,7 +200,19 @@
     const modal=$("#account-modal"), form=$("#account-form"), title=$("#account-modal-title"),
           cancel=$("#account-cancel"), extras=$("#extra-fields");
     title.textContent = `[${state.role}] 계정 생성`; form.reset(); form.dataset.role=state.role;
-    mountExtraFields(state.role, extras);
+
+    // 역할 기본값: 현재 탭의 역할 → 셀렉트에 반영
+    if (form.role) form.role.value = state.role;
+
+    // 현재 선택된 역할 기준으로 추가필드 마운트
+    const currentRole = form.role?.value || state.role;
+    mountExtraFields(currentRole, extras);
+
+    // 역할이 바뀌면 추가필드 갱신
+    form.role?.addEventListener('change', () => {
+      mountExtraFields(form.role.value, extras);
+    });
+
     const close=()=>modal.classList.add("hidden"); cancel.onclick=close;
 
     form.onsubmit = async (e)=>{
@@ -210,12 +222,15 @@
       if(!data.password || !data.password2){ toast("비밀번호를 입력해주세요."); return; }
       if(data.password !== data.password2){ toast("비밀번호가 일치하지 않습니다."); return; }
 
+      // 폼에서 선택한 역할(없으면 현재 탭)
+      const roleToUse = (data.role || state.role).trim().toLowerCase();
+
       try{
         await API.create({
           name: data.name.trim(),
           email: data.email.trim(),
           password: data.password,
-          role: state.role,
+          role: roleToUse,
           phone: data.phone || "", status: data.status || "active",
           hospital: data.hospital||"", workStatus:data.workStatus||"",
           adminType:data.adminType||"", ward:data.ward||"", license:data.license||"",
@@ -240,7 +255,16 @@
     form.email.value = item.email || "";
     form.phone.value = item.phone || "";
     form.status.value= item.status || "active";
-    mountExtraFields(state.role, extras, item);
+
+    // 현재 계정의 역할을 셀렉트에 반영 (없으면 탭 역할)
+    if (form.role) form.role.value = item.role || state.role;
+
+    // 역할 기준으로 추가필드 렌더 + 변경 시 갱신
+    const currentRole = form.role?.value || state.role;
+    mountExtraFields(currentRole, extras, item);
+    form.role?.addEventListener('change', () => {
+      mountExtraFields(form.role.value, extras, item);
+    });
 
     const close=()=>modal.classList.add("hidden"); cancel.onclick=close;
 
@@ -251,12 +275,18 @@
 
       const patch = {
         name: data.name.trim(),
-        email: (data.email||"").trim(),
-        role:  state.role
+        email: (data.email||"").trim()
       };
+
+      // 비밀번호 변경 (선택)
       if (data.password && data.password.trim()){
         if (!data.password2 || data.password !== data.password2){ toast("비밀번호가 일치하지 않습니다."); return; }
         patch.password = data.password;
+      }
+
+      // 역할 변경 (선택)
+      if (data.role && data.role.trim()) {
+        patch.role = data.role.trim().toLowerCase();
       }
 
       try{
