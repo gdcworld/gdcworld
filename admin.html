@@ -57,7 +57,7 @@
 
   <!-- 스크립트 -->
   <script src="assets/auth.js?v=1" defer></script>
-  <script src="assets/app.js?v=6" defer></script>
+  <script src="assets/app.js?v=1" defer></script>
 </head>
 <body>
   <!-- 레이아웃: 사이드바 + 메인 -->
@@ -266,7 +266,7 @@
   <script>
     document.addEventListener('DOMContentLoaded', function(){
       if (!window.Auth) { alert('auth.js 로드 실패'); return; }
-     Auth.requireRole(['admin','nurse','physio','frontdesk','ptadmin','radiology','vice','staff','member']);
+      Auth.requireRole(['admin']);
 
       const emailEl = document.getElementById('whoami');
       if (emailEl) emailEl.textContent = Auth.currentUserEmail() || '';
