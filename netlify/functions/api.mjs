@@ -7,7 +7,7 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE // 서버 전용 키
 );
 
-// 허용 역할 (프론트의 드롭다운과 1:1 대응)
+// (폴백용) 하드코딩 허용 역할 — DB(roles)가 비어있을 때만 사용
 const ALLOWED_ROLES = [
   'admin','staff','member','physio','ptadmin','nurse','frontdesk','radiology','vice'
 ];
@@ -23,7 +23,6 @@ const send = (statusCode, data) => ({ statusCode, headers, body: JSON.stringify(
 const safeJson = (str) => { try { return JSON.parse(str || '{}'); } catch { return null; } };
 
 // DB ↔ 응답 필드 매핑 (snake_case → camelCase)
-// created_at은 표기 유지(프론트에서 그대로 사용)
 const toCamel = (row = {}) => ({
   id: row.id,
   email: row.email,
@@ -42,12 +41,22 @@ const toCamel = (row = {}) => ({
   position: row.position ?? null,
 });
 
-// SELECT 공통 목록 (가독성을 위해 상수화)
+// SELECT 공통 목록
 const ACCOUNT_SELECT = `
   id, email, role, created_at,
   name, phone, status,
   hospital, work_status, admin_type, ward, license, branch, area, position
 `;
+
+// ✅ 역할 캐시 로더: roles 테이블에서 단일 소스로 로딩
+let __rolesCache = null;
+async function loadRolesFromDB() {
+  if (__rolesCache) return __rolesCache;
+  const { data, error } = await supabase.from('roles').select('role').order('role');
+  if (error) { __rolesCache = []; return __rolesCache; }
+  __rolesCache = (data || []).map(r => r.role);
+  return __rolesCache;
+}
 
 export async function handler(event) {
   if (event.httpMethod === 'OPTIONS') return send(204, {});
@@ -91,6 +100,12 @@ export async function handler(event) {
   }
 
   try {
+    // ✅ 역할 목록 라우트: GET /api/roles
+    if (path === '/roles' && method === 'GET') {
+      const roles = await loadRolesFromDB();
+      return send(200, { ok: true, items: roles });
+    }
+
     // ───────── 로그인 ─────────
     // POST /api/login  { email, password }
     if (path === '/login' && method === 'POST') {
@@ -134,7 +149,13 @@ export async function handler(event) {
         } = body;
 
         if (!email || !password || !role) return send(400, { ok:false, message:'email/password/role 필요' });
-        if (!ALLOWED_ROLES.includes(role)) return send(400, { ok:false, message:'허용되지 않은 role' });
+
+        // ✅ 역할 검증: DB roles 우선(비어있으면 상수 폴백)
+        {
+          const roles = await loadRolesFromDB();
+          const allowed = roles && roles.length ? roles : ALLOWED_ROLES;
+          if (!allowed.includes(role)) return send(400, { ok:false, message:'허용되지 않은 role' });
+        }
 
         const password_hash = await bcrypt.hash(password, 10);
         const emailNorm = String(email).toLowerCase();
@@ -182,7 +203,10 @@ export async function handler(event) {
         if (email) updates.email = String(email).toLowerCase();
         if (name !== undefined) updates.name = name;
         if (role) {
-          if (!ALLOWED_ROLES.includes(role)) return send(400, { ok:false, message:'허용되지 않은 role' });
+          // ✅ 역할 검증: DB roles 우선(비어있으면 상수 폴백)
+          const roles = await loadRolesFromDB();
+          const allowed = roles && roles.length ? roles : ALLOWED_ROLES;
+          if (!allowed.includes(role)) return send(400, { ok:false, message:'허용되지 않은 role' });
           updates.role = role;
         }
         if (password) updates.password_hash = await bcrypt.hash(password, 10);
