@@ -21,7 +21,7 @@
     if (!box) return;
     try {
       // 실제 파일 경로로 정렬 (기존: assets/data/hospitals.json)
-      const res = await fetch('hospitals.json?v=' + Date.now());
+      const res = await fetch('assets/data/hospitals.json?v=' + Date.now());
       const data = await res.json();
       const sel = qs('#hospitalSelect');
       sel.innerHTML = (data.hospitals || [])
