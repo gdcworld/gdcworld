@@ -15,10 +15,17 @@
 
   // ---- API helper: /api 우선 호출, 실패 시 /.netlify/functions 로 재시도
   async function apiFetch(path, opts = {}) {
-    const baseHeaders = { 'Content-Type': 'application/json', ...(opts.headers||{}) };
+    const token = (window.Auth?.currentToken && Auth.currentToken()) || null;
+    const baseHeaders = {
+      'Content-Type': 'application/json',
+      ...(opts.headers||{}),
+      ...(token ? { Authorization: `Bearer ${token}` } : {}) // ★ 토큰 첨부
+    };
     const req = { ...opts, headers: baseHeaders };
+
     let r = await fetch(`/api${path}`, req);
     if (!r.ok) r = await fetch(`/.netlify/functions/api${path}`, req);
+
     let j = null;
     try { j = await r.json(); } catch {}
     if (!r.ok || j?.ok === false) {
@@ -78,13 +85,12 @@
   };
   const roleTitle = (role)=>({physio:"물리치료사",ptadmin:"PT관리자",nurse:"간호사",frontdesk:"원무",radiology:"방사선사",vice:"부원장"}[role]||role);
 
-  // ---- [추가] 역할 목록 로더(서버 /api/roles)
+  // ---- [수정] 역할 목록 로더(서버 /api/roles, 토큰 포함)
   let __rolesCache = null;
   async function loadRoles() {
     if (__rolesCache) return __rolesCache;
     try {
-      const r = await fetch('/api/roles');
-      const j = await r.json();
+      const j = await apiFetch('/roles', { method:'GET' });
       __rolesCache = Array.isArray(j.items) ? j.items : [];
     } catch {
       __rolesCache = [];
@@ -92,7 +98,7 @@
     return __rolesCache;
   }
 
-  // ---- 섹션 렌더
+  // ---- 이하 UI 로직(디자인 변경 없음)
   function renderModule(container){
     const role = container.dataset.role;
     container.innerHTML = `
@@ -222,14 +228,11 @@
       form.role.innerHTML = roles.map(r => `<option value="${r}">${r}</option>`).join('');
     }
 
-    // 기본 선택값: 현재 탭의 역할
     if (form.role) form.role.value = state.role;
 
-    // 역할별 추가필드 마운트
     const currentRole = form.role?.value || state.role;
     mountExtraFields(currentRole, extras);
 
-    // 역할 변경 시 추가필드 갱신
     form.role?.addEventListener('change', () => {
       mountExtraFields(form.role.value, extras);
     });
@@ -273,20 +276,17 @@
           cancel=$("#account-cancel"), extras=$("#extra-fields");
     title.textContent = `[${state.role}] 계정 수정`; form.reset(); form.dataset.role=state.role;
 
-    // 기존 값
     form.name.value   = item.name   || "";
     form.email.value  = item.email  || "";
     form.phone.value  = item.phone  || "";
     form.status.value = item.status || "active";
 
-    // [NEW] 역할 옵션 로딩
     const roles = await loadRoles();
     if (form.role && roles.length) {
       form.role.innerHTML = roles.map(r => `<option value="${r}">${r}</option>`).join('');
     }
     if (form.role) form.role.value = item.role || state.role;
 
-    // 역할별 추가 필드 + 값 바인딩
     const currentRole = form.role?.value || state.role;
     mountExtraFields(currentRole, extras, item);
     form.role?.addEventListener('change', () => {
@@ -302,16 +302,11 @@
       if(!data.name){ toast("이름은 필수입니다."); return; }
 
       const patch = {
-        // 기본 필드
         name: (data.name||"").trim(),
         email: (data.email||"").trim(),
         phone: data.phone ?? "",
         status: data.status ?? "",
-
-        // 역할(선택 변경)
         ...(data.role && data.role.trim() ? { role: data.role.trim().toLowerCase() } : {}),
-
-        // 비번(선택 변경)
         ...(data.password && data.password.trim() ? (() => {
           if (!data.password2 || data.password !== data.password2){
             toast("비밀번호가 일치하지 않습니다."); 
@@ -319,8 +314,6 @@
           }
           return { password: data.password };
         })() : {}),
-
-        // 역할별 추가 필드들
         hospital:  data.hospital  ?? "",
         workStatus:data.workStatus?? "",
         adminType: data.adminType ?? "",

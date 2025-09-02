@@ -1,6 +1,7 @@
 // netlify/functions/api.mjs
 import { createClient } from '@supabase/supabase-js';
 import bcrypt from 'bcryptjs';
+import crypto from 'crypto';
 
 const supabase = createClient(
   process.env.SUPABASE_URL,
@@ -11,6 +12,42 @@ const supabase = createClient(
 const ALLOWED_ROLES = [
   'admin','staff','member','physio','ptadmin','nurse','frontdesk','radiology','vice'
 ];
+
+// ───────── Token utils (HS256-like) ─────────
+const AUTH_SECRET = process.env.AUTH_SECRET || 'CHANGE_ME_IN_NETLIFY';
+const b64  = (obj) => Buffer.from(JSON.stringify(obj)).toString('base64url');
+const hmac = (str) => crypto.createHmac('sha256', AUTH_SECRET).update(str).digest('base64url');
+
+function signToken(payload){ // { sub,email,role,iat,exp }
+  const h = b64({ alg:'HS256', typ:'JWT' });
+  const p = b64(payload);
+  const s = hmac(`${h}.${p}`);
+  return `${h}.${p}.${s}`;
+}
+function verifyToken(token){
+  try{
+    const [h,p,s] = String(token||'').split('.');
+    if (!h || !p || !s) return null;
+    if (hmac(`${h}.${p}`) !== s) return null;
+    const payload = JSON.parse(Buffer.from(p,'base64url').toString('utf8'));
+    if (!payload.exp || Date.now() > payload.exp) return null;
+    return payload; // { sub,email,role,iat,exp }
+  }catch{ return null; }
+}
+function readAuth(event){
+  const raw = (event.headers?.authorization || event.headers?.Authorization || '').trim();
+  const m = raw.match(/^Bearer\s+(.+)$/i);
+  return m ? verifyToken(m[1]) : null;
+}
+function requireLogin(auth){
+  return auth ? { ok:true } : { ok:false, status:401, message:'unauthorized' };
+}
+function requireRole(auth, roles=[]){
+  const base = requireLogin(auth);
+  if (!base.ok) return base;
+  if (roles.length && !roles.includes(auth.role)) return { ok:false, status:403, message:'forbidden' };
+  return { ok:true };
+}
 
 // 공통 응답 헬퍼
 const headers = {
@@ -75,23 +112,18 @@ export async function handler(event) {
   const method  = (event.httpMethod || 'GET').toUpperCase();
 
   // ───────── 디버그/헬스체크 ─────────
-  // 1) 쿼리로 whoami: /.netlify/functions/api?__whoami=1
   if (rawUrl && rawUrl.searchParams.get('__whoami') === '1') {
     const url = process.env.SUPABASE_URL || '';
     const m   = url.match(/^https:\/\/([^.]+)\.supabase\.co/i);
     const ref = m ? m[1] : null;
     return send(200, { ok: true, supabaseUrl: url, projectRef: ref });
   }
-
-  // 2) 라우트 whoami: /api/whoami
   if (path === '/whoami' && method === 'GET') {
     const url = process.env.SUPABASE_URL || '';
     const m   = url.match(/^https:\/\/([^.]+)\.supabase\.co/i);
     const ref = m ? m[1] : null;
     return send(200, { ok: true, supabaseUrl: url, projectRef: ref });
   }
-
-  // 3) 헬스체크: /api/health
   if (path === '/health' && method === 'GET') {
     return send(200, { ok: true, message: 'alive', time: new Date().toISOString() });
   }
@@ -100,8 +132,13 @@ export async function handler(event) {
   }
 
   try {
-    // ✅ 역할 목록 라우트: GET /api/roles
+    // 👇 로그인한 사용자/역할 파싱 (없으면 null)
+    const auth = readAuth(event);
+
+    // ✅ 역할 목록 라우트: GET /api/roles  (로그인 필요)
     if (path === '/roles' && method === 'GET') {
+      const check = requireLogin(auth);
+      if (!check.ok) return send(check.status, { ok:false, message:check.message });
       const roles = await loadRolesFromDB();
       return send(200, { ok: true, items: roles });
     }
@@ -123,12 +160,22 @@ export async function handler(event) {
       const passOK = await bcrypt.compare(password, user.password_hash || '');
       if (!passOK) return send(401, { ok:false, message:'이메일 또는 비밀번호가 올바르지 않습니다.' });
 
-      return send(200, { ok:true, user:{ id:user.id, email:user.email, role:user.role } });
+      // ★ 토큰 발급 (8시간)
+      const now = Date.now();
+      const token = signToken({
+        sub: user.id, email: user.email, role: user.role,
+        iat: now, exp: now + 1000*60*60*8
+      });
+
+      return send(200, { ok:true, user:{ id:user.id, email:user.email, role:user.role }, token });
     }
 
     // ───────── 계정 CRUD ─────────
-    // /api/accounts
+    // /api/accounts  (관리자만 허용)
     if (path === '/accounts') {
+      const check = requireRole(auth, ['admin']); // 원하면 ['admin','ptadmin'] 등으로 확장
+      if (!check.ok) return send(check.status, { ok:false, message: check.message });
+
       // 목록
       if (method === 'GET') {
         const { data, error } = await supabase

@@ -35,7 +35,6 @@
       const legacy = readLegacyUser();
       if (legacy) {
         localStorage.setItem(KEY, JSON.stringify(legacy));
-        // localStorage.removeItem('gdc_user'); // 필요시 정리
         return legacy;
       }
       return null;
@@ -53,14 +52,14 @@
     localStorage.removeItem('gdc_user'); // 레거시도 정리
   }
 
-  // ───────── 로그인 (Supabase API 연동) ─────────
+  // ───────── 로그인 (서버 토큰 포함) ─────────
   async function login(email, password) {
     const payload = JSON.stringify({
       email: String(email || '').trim().toLowerCase(),
       password: String(password || '')
     });
 
-    // 1차: /api/login (프록시 라우트)
+    // 1차: /api/login
     let r = await fetch('/api/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -77,7 +76,7 @@
     }
 
     let j = null;
-    try { j = await r.json(); } catch { /* noop */ }
+    try { j = await r.json(); } catch {}
 
     if (!r.ok || j?.ok === false) {
       const msg = (j && (j.message || j.error)) || 'login_failed';
@@ -86,13 +85,14 @@
       throw err;
     }
 
-    // 서버가 내려준 사용자(role 포함)
+    // 서버가 내려준 사용자 + token 저장
     const user = j.user || {};
     const session = {
       email: user.email,
       role: user.role,
+      token: j.token || null,           // ★ 추가
       iat: now(),
-      exp: now() + 1000 * 60 * 60 * 8 // 8h
+      exp: now() + 1000 * 60 * 60 * 8   // 8h
     };
     setSession(session);
     return session;
@@ -120,9 +120,11 @@
   function currentRole() {
     return getSession()?.role ?? null;
   }
-
   function currentUserEmail() {
     return getSession()?.email ?? null;
+  }
+  function currentToken() {
+    return getSession()?.token ?? null;
   }
 
   // 전역 노출
@@ -133,6 +135,7 @@
     logout,
     requireRole,
     currentRole,
-    currentUserEmail
+    currentUserEmail,
+    currentToken       // ★ 추가
   };
 })();
