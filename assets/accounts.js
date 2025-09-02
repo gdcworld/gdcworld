@@ -353,7 +353,19 @@
     }).join("");
   }
 
-  function boot(root=document){ $$(".account-module", root).forEach(mod=>{ if(mod._inited) return; mod._inited=true; renderModule(mod); }); }
-  window.__bootAccountsModules = boot;
+ function boot(root = document) {
+  $$(".account-module", root).forEach(mod => {
+    if (mod._inited) return;
+    // 패널이 숨겨져 있으면 지금은 부팅하지 않고 대기
+    const panel = mod.closest("[data-panel]");
+    if (panel && panel.classList.contains("hidden")) return;
+
+    mod._inited = true;
+    renderModule(mod);
+  });
+}
+
+// admin.html의 showPanel()에서 필요할 때 호출됨
+window.__bootAccountsModules = (root) => boot(root);
   document.addEventListener("DOMContentLoaded", ()=> boot());
 })();

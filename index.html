@@ -63,7 +63,7 @@
 <body>
   <div class="login-container">
     <div class="logo">
-      <img id="brandLogo" src="./gdc_logo.png?v=1" alt="GDC World Logo" width="120" decoding="async" loading="eager" />
+      <img id="brandLogo" src="./gdc_logo.svg?v=1" alt="GDC World Logo" width="120" decoding="async" loading="eager" />
     </div>
     <h2>GDC World</h2>
 
@@ -110,7 +110,7 @@
         img.parentElement.replaceChild(svg, img);
       }
       img.addEventListener('error', inlineFallback);
-      try { img.src = './gdc_logo.png?v=' + Date.now(); } catch(e){}
+      try { img.src = './gdc_logo.svg?v=' + Date.now(); } catch(e){}
     })();
 
     // ✅ 이미 로그인되어 있으면 역할별로 바로 이동 (Auth 세션 기준)
