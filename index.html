@@ -115,13 +115,12 @@
 
     // ✅ 이미 로그인되어 있으면 역할별로 바로 이동 (Auth 세션 기준)
     document.addEventListener('DOMContentLoaded', function(){
-      try{
-        if (!window.Auth || !Auth.getSession) return;
-        const s = Auth.getSession();
-        if (s?.role === 'admin') return location.replace('admin.html');
-        if (s?.role) return location.replace('staff.html');
-      }catch(e){}
-    });
+  try{
+    if (!window.Auth || !Auth.getSession) return;
+    const s = Auth.getSession();
+    if (s) return location.replace('admin.html'); // ✅ 통합
+  }catch(e){}
+});
 
     // ✅ 로그인: Auth.login(email, password) 단일 경로 사용
     document.addEventListener('DOMContentLoaded', function(){
@@ -140,9 +139,8 @@
 
         try{
           if (!window.Auth || !Auth.login) throw new Error('auth_not_loaded');
-          const s = await Auth.login(email, password); // auth.js가 /api/login 처리
-          if (s?.role === 'admin') location.replace('admin.html');
-          else location.replace('staff.html');
+          const s = await Auth.login(email, password);
+location.replace('admin.html');
         }catch(ex){
           console.error(ex);
           err.textContent = '아이디 또는 비밀번호가 올바르지 않습니다.';

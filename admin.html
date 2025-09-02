@@ -266,7 +266,9 @@
   <script>
     document.addEventListener('DOMContentLoaded', function(){
       if (!window.Auth) { alert('auth.js 로드 실패'); return; }
-      Auth.requireRole(['admin']);
+
+      // ✅ Plan A: 로그인만 요구 (역할 제한 없음)
+      Auth.requireRole(); /* (기존) Auth.requireRole(['admin']) */
 
       const emailEl = document.getElementById('whoami');
       if (emailEl) emailEl.textContent = Auth.currentUserEmail() || '';
@@ -278,6 +280,85 @@
       });
 
       if (window.AdminUI?.init) window.AdminUI.init();
+
+      // ──────────────────────────────────────────────────────────────
+      // 역할별 메뉴/패널 가시성 제어 (디자인 불변)
+      // ──────────────────────────────────────────────────────────────
+      const VIEW_ACCESS = {
+        // 'ALL' = 모든 메뉴/패널 허용
+        admin: 'ALL',
+
+        // 아래는 안전한 기본값(원하면 자유롭게 조정 가능)
+        physio:   ['noncovered-*','partners'],
+        ptadmin:  ['noncovered-*','partners'],
+        nurse:    ['noncovered-*','drugs-*','claims','revisit','partners'],
+        frontdesk:['consumables-*','income','nhis','claims','closing','partners'],
+        radiology:['drugs-*','partners'],
+        vice:     ['partners','income','nhis','revisit','claims','closing'],
+        staff:    ['partners'],
+        member:   ['partners']
+      };
+
+      const role = (window.Auth && Auth.currentRole && Auth.currentRole()) || 'member';
+
+      function matchesAny(id, patterns){
+        return patterns.some(p=>{
+          if (p === '*') return true;
+          if (p.endsWith('*')) return id.startsWith(p.slice(0,-1));
+          return p === id;
+        });
+      }
+
+      function applyRoleVisibility(role){
+        const allow = VIEW_ACCESS[role] ?? ['partners'];
+        const allowAll = allow === 'ALL';
+
+        // 버튼(그룹 외 단일 버튼 + 하위 항목 버튼)
+        document.querySelectorAll('.nav [data-view]').forEach(btn=>{
+          const v = btn.dataset.view;
+          const ok = allowAll || matchesAny(v, allow);
+          btn.classList.toggle('hidden', !ok);
+        });
+
+        // 패널
+        document.querySelectorAll('[data-panel]').forEach(p=>{
+          const id = p.dataset.panel;
+          const ok = allowAll || matchesAny(id, allow);
+          p.classList.toggle('hidden', !ok);
+        });
+
+        // 서브그룹 자체도 전부 숨김이면 감춤
+        document.querySelectorAll('.nav-group').forEach(grp=>{
+          const subs = grp.querySelectorAll('.subitem[data-view]');
+          if (subs.length){
+            const anyVisible = Array.from(subs).some(s=>!s.classList.contains('hidden'));
+            grp.classList.toggle('hidden', !anyVisible);
+          }
+        });
+
+        // 초기 패널 고정: 허용된 첫 메뉴 → showPanel
+        const firstBtn = document.querySelector('.nav [data-view]:not(.hidden)');
+        const firstView = firstBtn ? firstBtn.dataset.view : 'partners';
+        if (typeof showPanel === 'function') showPanel(firstView);
+      }
+
+      applyRoleVisibility(role);
+
+      // 그룹 토글
+      document.querySelectorAll('.nav-parent').forEach(parent=>{
+        const targetSel = parent.getAttribute('data-collapse-target');
+        const box = targetSel ? document.querySelector(targetSel) : null;
+        parent.addEventListener('click', ()=>{
+          const open = parent.getAttribute('aria-expanded') === 'true';
+          parent.setAttribute('aria-expanded', String(!open));
+          if (box) box.classList.toggle('open', !open);
+        });
+      });
+
+      // 하위 항목 클릭 시 패널 표시
+      document.querySelectorAll('.subitem[data-view]').forEach(btn=>{
+        btn.addEventListener('click', ()=> showPanel(btn.dataset.view));
+      });
 
       const titleMap = {
         'noncovered-dosu':'도수 치료',
@@ -308,147 +389,142 @@
         'closing':'마감일지'
       };
 
-function showPanel(id){
-  document.querySelectorAll('[data-panel]').forEach(p=>{
-    p.classList.toggle('hidden', p.getAttribute('data-panel') !== id);
-  });
-
-  const h = document.getElementById('pageTitle');
-  if (h) h.textContent = titleMap[id] || h.textContent;
-
-  document.querySelectorAll('.subitem').forEach(b=>{
-    b.classList.toggle('active', b.dataset.view === id);
-  });
-
-  // ▼ 탭 전환 시 해당 패널 내부 account-module만 부팅
-  if (window.__bootAccountsModules) {
-    const panelEl = document.querySelector(`[data-panel="${id}"]`);
-    window.__bootAccountsModules(panelEl);
-  }
-}
-
-      // 그룹 토글
-      document.querySelectorAll('.nav-parent').forEach(parent=>{
-        const targetSel = parent.getAttribute('data-collapse-target');
-        const box = targetSel ? document.querySelector(targetSel) : null;
-        parent.addEventListener('click', ()=>{
-          const open = parent.getAttribute('aria-expanded') === 'true';
-          parent.setAttribute('aria-expanded', String(!open));
-          if (box) box.classList.toggle('open', !open);
+      window.showPanel = function(id){
+        document.querySelectorAll('[data-panel]').forEach(p=>{
+          p.classList.toggle('hidden', p.getAttribute('data-panel') !== id);
         });
-      });
 
-      // 하위 항목 클릭 시 패널 표시
-      document.querySelectorAll('.subitem[data-view]').forEach(btn=>{
-        btn.addEventListener('click', ()=> showPanel(btn.dataset.view));
-      });
+        const h = document.getElementById('pageTitle');
+        if (h) h.textContent = titleMap[id] || h.textContent;
+
+        document.querySelectorAll('.subitem').forEach(b=>{
+          b.classList.toggle('active', b.dataset.view === id);
+        });
+
+        // ▼ 탭 전환 시 해당 패널 내부 account-module만 부팅
+        if (window.__bootAccountsModules) {
+          const panelEl = document.querySelector(`[data-panel="${id}"]`);
+          window.__bootAccountsModules(panelEl);
+        }
+      };
     });
   </script>
 
   <!-- 계정관리 테이블 모듈 -->
   <script src="assets/accounts.js?v=3" defer></script>
- <!-- 계정 생성/수정 모달 -->
-<div id="account-modal" class="modal hidden">
-  <div class="modal-card">
-    <h3 id="account-modal-title">계정 생성</h3>
-    <form id="account-form">
-  <div class="grid">
-    <label>로그인 ID
-      <input name="loginId" type="text" required placeholder="physio_user1" />
-    </label>
- <label>비밀번호
-  <div style="display:flex;align-items:center;gap:6px;">
-    <input name="password" type="password" placeholder="초기 비밀번호" style="flex:1;" />
-    <button type="button" class="btn ghost toggle-pass" data-target="password">보기</button>
+
+  <!-- 계정 생성/수정 모달 -->
+  <div id="account-modal" class="modal hidden">
+    <div class="modal-card">
+      <h3 id="account-modal-title">계정 생성</h3>
+      <form id="account-form">
+        <div class="grid">
+          <label>로그인 ID
+            <input name="loginId" type="text" required placeholder="physio_user1" />
+          </label>
+          <label>비밀번호
+            <div style="display:flex;align-items:center;gap:6px;">
+              <input name="password" type="password" placeholder="초기 비밀번호" style="flex:1;" />
+              <button type="button" class="btn ghost toggle-pass" data-target="password">보기</button>
+            </div>
+          </label>
+
+          <label>비밀번호 확인
+            <div style="display:flex;align-items:center;gap:6px;">
+              <input name="password2" type="password" placeholder="다시 입력" style="flex:1;" />
+              <button type="button" class="btn ghost toggle-pass" data-target="password2">보기</button>
+            </div>
+          </label>
+
+          <label>이름
+            <input name="name" type="text" required placeholder="홍길동" />
+          </label>
+          <label>이메일
+            <input name="email" type="email" placeholder="user@example.com" />
+          </label>
+          <label>전화번호
+            <input name="phone" type="tel" placeholder="010-1234-5678" />
+          </label>
+          <label>상태
+            <select name="status" required>
+              <option value="active">활성</option>
+              <option value="inactive">비활성</option>
+            </select>
+          </label>
+
+          <!-- ▼ 권한(역할) 선택 -->
+          <label>권한(역할)
+            <select name="role" required>
+              <option value="physio">물리치료사</option>
+              <option value="ptadmin">PT관리자</option>
+              <option value="nurse">간호사</option>
+              <option value="frontdesk">원무</option>
+              <option value="radiology">방사선사</option>
+              <option value="vice">부원장</option>
+              <option value="staff">스태프</option>
+              <option value="member">멤버</option>
+              <option value="admin">관리자</option>
+            </select>
+          </label>
+        </div>
+
+        <!-- 역할별 추가 필드 동적 주입 영역 -->
+        <div class="grid" id="extra-fields" style="margin-top:10px;"></div>
+
+        <div class="row right">
+          <button type="button" class="btn ghost" id="account-cancel">취소</button>
+          <button type="submit" class="btn primary" id="account-save">저장</button>
+        </div>
+      </form>
+    </div>
   </div>
-</label>
 
-<label>비밀번호 확인
-  <div style="display:flex;align-items:center;gap:6px;">
-    <input name="password2" type="password" placeholder="다시 입력" style="flex:1;" />
-    <button type="button" class="btn ghost toggle-pass" data-target="password2">보기</button>
-  </div>
-</label>
+  <!-- 간단 토스트 -->
+  <div id="toast" class="toast hidden"></div>
 
+  <style>
+    .hidden{display:none}
+    .modal{position:fixed; inset:0; display:grid; place-items:center; background:rgba(0,0,0,.45); z-index:1000}
+    .modal-card{width:min(620px, 92vw); background:#2b2d33; color:#fff; border-radius:16px; padding:20px; box-shadow:0 10px 30px rgba(0,0,0,.4)}
+    .modal-card h3{margin:0 0 12px}
+    .modal-card .grid{display:grid; grid-template-columns:1fr 1fr; gap:12px}
+    .modal-card label{display:flex; flex-direction:column; gap:6px; font-size:14px}
+    .modal-card input, .modal-card select{
+      padding:10px 12px; border:1px solid #444; border-radius:10px; background:#1f2025; color:#fff; outline:none
+    }
+    .row.right{display:flex; gap:8px; justify-content:flex-end; margin-top:14px}
+    .btn{padding:10px 14px; border-radius:10px; border:1px solid transparent; background:#3a3b41; color:#fff; cursor:pointer}
+    .btn.primary{background:var(--gold-2)}
+    .btn.ghost{background:transparent; border-color:#555}
+    .toast{position:fixed; bottom:24px; left:50%; transform:translateX(-50%);
+           background:#1f2025; color:#fff; padding:10px 14px; border-radius:10px; border:1px solid #444; z-index:1100}
+  </style>
 
-    <label>이름
-      <input name="name" type="text" required placeholder="홍길동" />
-    </label>
-    <label>이메일
-      <input name="email" type="email" placeholder="user@example.com" />
-    </label>
-    <label>전화번호
-      <input name="phone" type="tel" placeholder="010-1234-5678" />
-    </label>
-    <label>상태
-      <select name="status" required>
-        <option value="active">활성</option>
-        <option value="inactive">비활성</option>
-      </select>
-    </label>
-
-    <!-- ▼▼ 추가: 권한(역할) 선택 -->
-    <label>권한(역할)
-      <select name="role" required>
-        <option value="physio">물리치료사</option>
-        <option value="ptadmin">PT관리자</option>
-        <option value="nurse">간호사</option>
-        <option value="frontdesk">원무</option>
-        <option value="radiology">방사선사</option>
-        <option value="vice">부원장</option>
-        <option value="staff">스태프</option>
-        <option value="member">멤버</option>
-        <option value="admin">관리자</option>
-      </select>
-    </label>
-    <!-- ▲▲ 추가 끝 -->
-
-  </div>
-
-  <!-- ✅ 역할별 추가 필드가 동적으로 주입되는 영역 (필수) -->
-  <div class="grid" id="extra-fields" style="margin-top:10px;"></div>
-
-  <div class="row right">
-    <button type="button" class="btn ghost" id="account-cancel">취소</button>
-    <button type="submit" class="btn primary" id="account-save">저장</button>
-  </div>
-</form>
-
-  </div>
-</div>
-
-<!-- 간단 토스트 -->
-<div id="toast" class="toast hidden"></div>
-
-<style>
-  .hidden{display:none}
-  .modal{position:fixed; inset:0; display:grid; place-items:center; background:rgba(0,0,0,.45); z-index:1000}
-  .modal-card{width:min(620px, 92vw); background:#2b2d33; color:#fff; border-radius:16px; padding:20px; box-shadow:0 10px 30px rgba(0,0,0,.4)}
-  .modal-card h3{margin:0 0 12px}
-  .modal-card .grid{display:grid; grid-template-columns:1fr 1fr; gap:12px}
-  .modal-card label{display:flex; flex-direction:column; gap:6px; font-size:14px}
-  .modal-card input, .modal-card select{
-    padding:10px 12px; border:1px solid #444; border-radius:10px; background:#1f2025; color:#fff; outline:none
-  }
-  .row.right{display:flex; gap:8px; justify-content:flex-end; margin-top:14px}
-  .btn{padding:10px 14px; border-radius:10px; border:1px solid transparent; background:#3a3b41; color:#fff; cursor:pointer}
-  .btn.primary{background:var(--gold-2)}
-  .btn.ghost{background:transparent; border-color:#555}
-  .toast{position:fixed; bottom:24px; left:50%; transform:translateX(-50%);
-         background:#1f2025; color:#fff; padding:10px 14px; border-radius:10px; border:1px solid #444; z-index:1100}
-</style>
   <script>
-  // 비밀번호 보기/숨기기 토글
-  document.addEventListener("click", (e) => {
-    const btn = e.target.closest(".toggle-pass");
-    if (!btn) return;
-    let scope = btn.closest("label, .row, .field, div");
-    let input = scope?.querySelector(`input[name="${btn.dataset.target || ""}"]`);
-    if (!input) input = scope?.querySelector('input[type="password"], input[type="text"]');
-    if (!input) return;
-    input.type = (input.type === "password") ? "text" : "password";
-    btn.textContent = (input.type === "password") ? "보기" : "숨기기";
-  });
+    // 비밀번호 보기/숨기기 토글
+    document.addEventListener("click", (e) => {
+      const btn = e.target.closest(".toggle-pass");
+      if (!btn) return;
+      let scope = btn.closest("label, .row, .field, div");
+      let input = scope?.querySelector(`input[name="${btn.dataset.target || ""}"]`);
+      if (!input) input = scope?.querySelector('input[type="password"], input[type="text"]');
+      if (!input) return;
+      input.type = (input.type === "password") ? "text" : "password";
+      btn.textContent = (input.type === "password") ? "보기" : "숨기기";
+    });
   </script>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+  if (!window.Auth) { alert('auth.js 로드 실패'); return; }
+
+  // ✅ Plan A: 로그인만 요구 (역할 제한 없음)
+  Auth.requireRole(); // 세션 없으면 자동으로 login.html로 보냄
+
+  // 기존 초기화 이어서
+  if (window.AdminUI?.init) window.AdminUI.init();
+});
+</script>
+
 </body>
 </html>
