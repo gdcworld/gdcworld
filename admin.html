@@ -132,6 +132,7 @@
         <button data-view="closing"><span class="left">📝 마감일지</span>›</button>
         <button data-view="categories"><span class="left">🗂️ 카테고리 관리</span>›</button>
         <button data-view="partners"><span class="left">🏥 계약 병원(파트너)</span>›</button>
+        <button data-view="carm"><span class="left">📷 C-arm</span>›</button>
       </nav>
     </aside>
 
@@ -259,6 +260,7 @@
       <section class="panel hidden" data-panel="revisit"><h2 class="h1">재진율</h2>준비 중</section>
       <section class="panel hidden" data-panel="claims"><h2 class="h1">진료비 청구 내역</h2>준비 중</section>
       <section class="panel hidden" data-panel="closing"><h2 class="h1">마감일지</h2>준비 중</section>
+      <section class="panel hidden" data-panel="carm"><h2 class="h1">C-arm</h2>
     </main>
   </div>
 
@@ -298,7 +300,7 @@
 
   // 나머지 역할은 기본적으로 접근 제한
   ptadmin: [],
-  radiology: [],
+  radiology: ['carm'],
   vice: [],
   staff: [],
   member: []
@@ -394,6 +396,7 @@
         'revisit':'재진율',
         'claims':'진료비 청구 내역',
         'closing':'마감일지'
+        'carm':'C-arm'
       };
 
       window.showPanel = function(id){
