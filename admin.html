@@ -253,6 +253,37 @@
         <h2 class="h1">부원장</h2>
         <div class="account-module" data-role="vice"></div>
       </section>
+       
+     <!-- NEW: C-arm 패널 -->
+<section class="panel hidden" data-panel="carm">
+  <h2 class="h1">C-arm</h2>
+
+  <div class="tools" style="gap:8px; flex-wrap:wrap;">
+    <label>날짜:
+      <input id="carmDate" type="date"
+             style="padding:8px 10px;border-radius:8px;border:1px solid #444;background:#202227;color:#fff;">
+    </label>
+    <label>C-arm:
+      <input id="carmQty" type="number" min="0" step="1" value="0"
+             style="width:90px;padding:8px 10px;border-radius:8px;border:1px solid #444;background:#202227;color:#fff;">
+    </label>
+    <label>Arthro:
+      <input id="arthroQty" type="number" min="0" step="1" value="0"
+             style="width:90px;padding:8px 10px;border-radius:8px;border:1px solid #444;background:#202227;color:#fff;">
+    </label>
+    <button class="btn" id="carmSave" type="button">저장</button>
+    <button class="btn" id="carmToday" type="button">오늘로</button>
+  </div>
+
+  <table class="table" id="carmTable">
+    <thead>
+      <tr><th>날짜</th><th>종류</th><th>갯수</th><th>작성일</th></tr>
+    </thead>
+    <tbody>
+      <tr><td colspan="4">데이터 없음</td></tr>
+    </tbody>
+  </table>
+</section>
 
       <!-- 기존 단일 패널 -->
       <section class="panel hidden" data-panel="income"><h2 class="h1">수입/지출</h2>준비 중</section>
@@ -534,6 +565,84 @@ document.addEventListener('DOMContentLoaded', function () {
   // 기존 초기화 이어서
   if (window.AdminUI?.init) window.AdminUI.init();
 });
+</script>
+
+<script>
+(function(){
+  // 공용 API 호출: /api 우선, 실패 시 /.netlify/functions 재시도
+  async function carmApi(path, opts={}){
+    const token = (window.Auth?.currentToken && Auth.currentToken()) || null; // 로그인 토큰 재사용
+    const headers = { 'Content-Type': 'application/json', ...(opts.headers||{}), ...(token ? { Authorization: `Bearer ${token}` } : {}) };
+    let r = await fetch('/api' + path, { ...opts, headers });
+    if (!r.ok) r = await fetch('/.netlify/functions/api' + path, { ...opts, headers });
+    const j = await r.json().catch(()=>null);
+    if (!r.ok || j?.ok === false) throw new Error(j?.message || 'request_failed');
+    return j;
+  }
+
+  async function renderCarmList(days=14){
+    const to   = new Date();
+    const from = new Date(); from.setDate(to.getDate() - (days-1));
+    const fmt  = d => d.toISOString().slice(0,10);
+    const j = await carmApi(`/carm?from=${fmt(from)}&to=${fmt(to)}`, { method:'GET' });
+    const tbody = document.querySelector('#carmTable tbody');
+    if (!tbody) return;
+    const rows = (j.items||[]).sort((a,b) => (a.work_date < b.work_date ? 1 : a.work_date > b.work_date ? -1 : a.proc_type.localeCompare(b.proc_type)));
+    tbody.innerHTML = rows.length ? rows.map(r => `
+      <tr>
+        <td>${r.work_date}</td>
+        <td>${r.proc_type === 'carm' ? 'C-arm' : 'Arthro'}</td>
+        <td>${r.qty}</td>
+        <td>${(r.created_at || '').replace('T',' ').slice(0,19)}</td>
+      </tr>
+    `).join('') : `<tr><td colspan="4">데이터 없음</td></tr>`;
+  }
+
+  async function saveCarm(){
+    const d = document.getElementById('carmDate').value;
+    const c = parseInt(document.getElementById('carmQty').value || '0', 10);
+    const a = parseInt(document.getElementById('arthroQty').value || '0', 10);
+    if (!d) { alert('날짜를 선택하세요.'); return; }
+    const items = [];
+    if (c >= 0) items.push({ type:'carm', qty:c });
+    if (a >= 0) items.push({ type:'arthro', qty:a });
+    await carmApi('/carm', { method:'POST', body: JSON.stringify({ workDate: d, items }) });
+  }
+
+  // 패널 진입 시 한 번만 초기화
+  let _carmBooted = false;
+  function initCarmPanel(){
+    if (_carmBooted) return;
+    _carmBooted = true;
+
+    const today = new Date().toISOString().slice(0,10);
+    const dateEl = document.getElementById('carmDate');
+    if (dateEl && !dateEl.value) dateEl.value = today;
+
+    document.getElementById('carmSave')?.addEventListener('click', async ()=>{
+      try { await saveCarm(); alert('저장되었습니다.'); await renderCarmList(); }
+      catch(e){ alert('저장 실패: ' + e.message); }
+    });
+    document.getElementById('carmToday')?.addEventListener('click', ()=>{
+      const t = new Date().toISOString().slice(0,10);
+      document.getElementById('carmDate').value = t;
+    });
+
+    renderCarmList();
+  }
+
+  // 네비 전환 시 app.js가 data-panel을 토글합니다.
+  // nav 버튼 클릭 때 'carm'로 전환되면 초기화 실행.
+  document.addEventListener('click', (e)=>{
+    const btn = e.target.closest('.nav button');
+    if (btn && btn.dataset.view === 'carm') initCarmPanel();
+  });
+
+  // 혹시 기본 활성 탭이 carm이면 진입시 바로 초기화
+  if (!document.querySelector('[data-panel="carm"]')?.classList.contains('hidden')) {
+    initCarmPanel();
+  }
+})();
 </script>
 
 </body>
