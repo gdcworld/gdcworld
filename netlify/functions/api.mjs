@@ -293,6 +293,70 @@ export async function handler(event) {
       return send(405, { ok:false, message:'Method Not Allowed' });
     }
 
+    // ───────── C-arm 일일 기록 ─────────
+    // GET  /api/carm?from=YYYY-MM-DD&to=YYYY-MM-DD
+    // POST /api/carm { workDate, items: [{ type:'carm'|'arthro', qty:number }] }
+    if (path === '/carm') {
+      // 방사선사 또는 관리자만
+      const check = requireRole(auth, ['radiology','admin']);
+      if (!check.ok) return send(check.status, { ok:false, message:check.message });
+
+      const meId = auth?.sub;
+      if (!meId) return send(401, { ok:false, message:'unauthorized' });
+
+      if (method === 'GET') {
+        const url  = new URL(event.rawUrl);
+        const from = url.searchParams.get('from');
+        const to   = url.searchParams.get('to');
+
+        let q = supabase.from('carm_daily')
+          .select('id, work_date, proc_type, qty, created_at, updated_at, created_by')
+          .order('work_date', { ascending:false })
+          .order('proc_type', { ascending:true })
+          .gte('work_date', from || '1900-01-01')
+          .lte('work_date', to   || '2999-12-31');
+
+        // radiology는 본인 것만, admin은 전체
+        if (auth.role !== 'admin') q = q.eq('created_by', meId);
+
+        const { data, error } = await q;
+        if (error) return send(400, { ok:false, message:error.message });
+        return send(200, { ok:true, items: data });
+      }
+
+      if (method === 'POST') {
+        const body = safeJson(event.body) || {};
+        const workDate = body.workDate;
+        const items = Array.isArray(body.items) ? body.items : [];
+
+        if (!workDate || !/^\d{4}-\d{2}-\d{2}$/.test(workDate)) {
+          return send(400, { ok:false, message:'workDate (YYYY-MM-DD) required' });
+        }
+
+        // upsert 2종(carm/arthro)
+        const rows = items
+          .filter(it => it && (it.type === 'carm' || it.type === 'arthro'))
+          .map(it => ({
+            work_date: workDate,
+            proc_type: it.type,
+            qty: Math.max(0, parseInt(it.qty ?? 0, 10)),
+            created_by: meId
+          }));
+
+        if (!rows.length) return send(400, { ok:false, message:'items empty' });
+
+        const { data, error } = await supabase
+          .from('carm_daily')
+          .upsert(rows, { onConflict: 'work_date,proc_type,created_by' })
+          .select('id, work_date, proc_type, qty, created_at, updated_at, created_by');
+
+        if (error) return send(400, { ok:false, message:error.message });
+        return send(200, { ok:true, items: data });
+      }
+
+      return send(405, { ok:false, message:'Method Not Allowed' });
+    }
+
     // 라우트 없음
     return send(404, { ok:false, error:'route_not_found', route:path, path:rawPath });
   } catch (e) {
