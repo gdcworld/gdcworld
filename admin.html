@@ -284,6 +284,30 @@
     </tbody>
   </table>
 </section>
+ 
+<!-- 월간 요약 -->
+<div class="panel" style="margin-top:16px;">
+  <div class="headerBar">
+    <h3 class="h1" style="margin:0;">월간 요약</h3>
+    <div style="display:flex; gap:8px; align-items:center;">
+      <input id="carmMonth" type="month"
+        style="padding:8px 10px;border-radius:8px;border:1px solid #444;background:#202227;color:#fff;">
+      <button class="btn" id="carmMonthPrev" type="button">이전</button>
+      <button class="btn" id="carmMonthNext" type="button">다음</button>
+      <button class="btn" id="carmMonthLoad" type="button">불러오기</button>
+    </div>
+  </div>
+
+  <div style="overflow:auto;">
+    <table class="table" id="carmMonthTable">
+      <thead id="carmMonthThead"><tr><th>날짜</th></tr></thead>
+      <tbody id="carmMonthTbody"><tr><td>로딩 전</td></tr></tbody>
+    </table>
+  </div>
+
+  <div class="tools" id="carmMonthTotals" style="margin-top:10px;"></div>
+</div>
+
 
       <!-- 기존 단일 패널 -->
       <section class="panel hidden" data-panel="income"><h2 class="h1">수입/지출</h2>준비 중</section>
@@ -291,7 +315,6 @@
       <section class="panel hidden" data-panel="revisit"><h2 class="h1">재진율</h2>준비 중</section>
       <section class="panel hidden" data-panel="claims"><h2 class="h1">진료비 청구 내역</h2>준비 중</section>
       <section class="panel hidden" data-panel="closing"><h2 class="h1">마감일지</h2>준비 중</section>
-      <section class="panel hidden" data-panel="carm"><h2 class="h1">C-arm</h2>
     </main>
   </div>
 
@@ -426,7 +449,7 @@
         'nhis':'공단 수령 현황',
         'revisit':'재진율',
         'claims':'진료비 청구 내역',
-        'closing':'마감일지'
+        'closing':'마감일지',
         'carm':'C-arm'
       };
 
@@ -644,6 +667,98 @@ document.addEventListener('DOMContentLoaded', function () {
   }
 })();
 </script>
+
+<script>
+(function(){
+  // 월간 요약 렌더링
+  async function renderCarmMonthly(monthStr){
+    // 일간에서 쓰는 API 헬퍼 재사용
+    const j = await (async function(path){
+      const token = (window.Auth?.currentToken && Auth.currentToken()) || null;
+      const headers = { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) };
+      let r = await fetch('/api' + path, { headers });
+      if (!r.ok) r = await fetch('/.netlify/functions/api' + path, { headers });
+      const jj = await r.json().catch(()=>null);
+      if (!r.ok || jj?.ok === false) throw new Error(jj?.message || 'request_failed');
+      return jj;
+    })(`/carm/summary?month=${monthStr}`);
+
+    const users = j.users || [];
+    const thead = document.getElementById('carmMonthThead');
+    const tbody = document.getElementById('carmMonthTbody');
+    const totalsBox = document.getElementById('carmMonthTotals');
+
+    // 헤더 구성: 날짜 | (사용자별) C-arm | Arthro
+    thead.innerHTML = `<tr>
+      <th>날짜</th>
+      ${users.map(u=>`<th colspan="2">${u}</th>`).join('')}
+    </tr>
+    <tr>
+      <th></th>
+      ${users.map(()=>`<th>C-arm</th><th>Arthro</th>`).join('')}
+    </tr>`;
+
+    // 본문: 1~31일
+    tbody.innerHTML = (j.rows||[]).map(row=>`
+      <tr>
+        <td>${row.day}</td>
+        ${users.map(u=>`
+          <td>${row[`${u}__carm`]||0}</td>
+          <td>${row[`${u}__arthro`]||0}</td>
+        `).join('')}
+      </tr>
+    `).join('');
+
+    // 월 합계 뱃지
+    totalsBox.innerHTML = users.map(u=>{
+      const t = j.totals?.[u] || { carm:0, arthro:0 };
+      return `<span class="badge" style="margin-right:6px;">${u} · C-arm ${t.carm} / Arthro ${t.arthro}</span>`;
+    }).join('');
+  }
+
+  // month 위젯 & 버튼
+  const yyyymm = (d)=> d.toISOString().slice(0,7);
+  let _carmMonthBooted = false;
+  function initCarmMonth(){
+    if (_carmMonthBooted) return;
+    _carmMonthBooted = true;
+
+    const m = document.getElementById('carmMonth');
+    if (m && !m.value) m.value = yyyymm(new Date());
+
+    document.getElementById('carmMonthLoad')?.addEventListener('click', ()=>{
+      const month = document.getElementById('carmMonth').value;
+      if (month) renderCarmMonthly(month).catch(e=>alert('요약 불러오기 실패: ' + e.message));
+    });
+    document.getElementById('carmMonthPrev')?.addEventListener('click', ()=>{
+      const d = new Date((document.getElementById('carmMonth').value||yyyymm(new Date()))+'-01');
+      d.setMonth(d.getMonth()-1);
+      document.getElementById('carmMonth').value = yyyymm(d);
+      document.getElementById('carmMonthLoad').click();
+    });
+    document.getElementById('carmMonthNext')?.addEventListener('click', ()=>{
+      const d = new Date((document.getElementById('carmMonth').value||yyyymm(new Date()))+'-01');
+      d.setMonth(d.getMonth()+1);
+      document.getElementById('carmMonth').value = yyyymm(d);
+      document.getElementById('carmMonthLoad').click();
+    });
+
+    if (m && m.value) renderCarmMonthly(m.value).catch(()=>{});
+  }
+
+  // C-arm 탭 전환 시 월간도 같이 부팅
+  document.addEventListener('click', (e)=>{
+    const btn = e.target.closest('.nav button');
+    if (btn && btn.dataset.view === 'carm') initCarmMonth();
+  });
+
+  // 기본 활성 탭이 carm이면 즉시 부팅
+  if (!document.querySelector('[data-panel="carm"]')?.classList.contains('hidden')) {
+    initCarmMonth();
+  }
+})();
+</script>
+
 
 </body>
 </html>
