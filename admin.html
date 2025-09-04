@@ -285,19 +285,26 @@
       // 역할별 메뉴/패널 가시성 제어 (디자인 불변)
       // ──────────────────────────────────────────────────────────────
       const VIEW_ACCESS = {
-        // 'ALL' = 모든 메뉴/패널 허용
-        admin: 'ALL',
+  admin: 'ALL',
 
-        // 아래는 안전한 기본값(원하면 자유롭게 조정 가능)
-        physio:   ['noncovered-*','partners'],
-        ptadmin:  ['noncovered-*','partners'],
-        nurse:    ['noncovered-*','drugs-*','claims','revisit','partners'],
-        frontdesk:['consumables-*','income','nhis','claims','closing','partners'],
-        radiology:['drugs-*','partners'],
-        vice:     ['partners','income','nhis','revisit','claims','closing'],
-        staff:    ['partners'],
-        member:   ['partners']
-      };
+  // 원무 = 수입/지출, 마감일지
+  frontdesk: ['income', 'closing'],
+
+  // 간호 = 소모품, 의약품
+  nurse: ['consumables-*', 'drugs-*'],
+
+  // 물리치료사 = 비급여치료
+  physio: ['noncovered-*'],
+
+  // 나머지 역할은 기본적으로 접근 제한
+  ptadmin: [],
+  radiology: [],
+  vice: [],
+  staff: [],
+  member: []
+};
+
+
 
       const role = (window.Auth && Auth.currentRole && Auth.currentRole()) || 'member';
 
