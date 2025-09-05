@@ -267,7 +267,8 @@
   </div>
 
   <!-- 달력형 7열 보드 -->
-  <div id="carmBoard">
+  <div id="carmBoard"
+   style="display:grid; grid-template-columns:repeat(7,1fr); gap:8px;">
      <!-- JS에서 일자 카드 생성 -->
   </div>
 </section>
@@ -645,7 +646,7 @@ function dayCard(dayLabel, items, ymd, canEdit){
   const role = getRole();
  const canEdit = (role === 'radiology' || role === 'admin');
 
-  const daysHtml = rows.map(row=>{
+  grid.innerHTML = rows.map(row=>{
     const items = users.map(u => ({
       name: u,
       carm:   Number(row[`${u}__carm`]   || 0),
@@ -657,7 +658,7 @@ function dayCard(dayLabel, items, ymd, canEdit){
     const dayLabel = `${mm}월 ${row.day}일`;
     return dayCard(dayLabel, items, ymd, canEdit);
 }).join('');
-grid.innerHTML = `<div class="month-grid">${daysHtml}</div>`;
+
 
   // ✅ 여기서 주입 (함수 안이므로 await 사용 OK)
   if (getRole() === 'admin') {
