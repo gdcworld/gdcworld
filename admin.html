@@ -560,6 +560,7 @@
 // ✅ (스크립트 상단, 함수 바깥)
 const currentRole  = (window.Auth?.currentRole && Auth.currentRole()) || 'member';
 const currentEmail = (window.Auth?.currentUserEmail && Auth.currentUserEmail()) || '';
+const role = (currentRole || '').toLowerCase();
 
 let __rads = [];
 async function loadRadiologyUsers(){
@@ -585,7 +586,7 @@ function dayCard(dayLabel, items, ymd, canEdit){
   const totalA = items.reduce((s,x)=> s + (x.arthro||0), 0);
 
   // 관리자에게만 보이는 "사람 선택" 드롭다운 (옵션은 Step 3에서 주입)
-  const adminSelectHTML = (currentRole === 'admin')
+  const adminSelectHTML = (role === 'admin')
     ? `<select name="who" class="rad-select" style="padding:8px 10px;border-radius:8px;border:1px solid #444;background:#1f2025;color:#fff;"></select>`
     : '';
 
@@ -602,8 +603,8 @@ function dayCard(dayLabel, items, ymd, canEdit){
       <div style="margin-top:8px;font-weight:700;">total ${totalC}/${totalA}</div>
 
       ${canEdit ? `
-      <form class="carm-inline" data-date="${ymd}"
-            style="margin-top:10px;display:grid;grid-template-columns:${currentRole==='admin'?'1fr 1fr 1fr auto':'1fr 1fr auto'};gap:6px;align-items:center;">
+       <form class="carm-inline" data-date="${ymd}"
+            style="margin-top:10px;display:grid;grid-template-columns:${role==='admin'?'1fr 1fr 1fr auto':'1fr 1fr auto'};gap:6px;align-items:center;">
         ${adminSelectHTML}
         <input name="carm"   type="number" min="0" placeholder="C-arm 수(예:3)"
                style="padding:8px 10px;border-radius:8px;border:1px solid #444;background:#1f2025;color:#fff;">
@@ -635,7 +636,7 @@ function dayCard(dayLabel, items, ymd, canEdit){
   const users = j.users || [];
   const rows  = j.rows  || [];
 
-  const canEdit = (currentRole === 'radiology' || currentRole === 'admin');
+  const canEdit = (role === 'radiology' || role === 'admin');
 
   grid.innerHTML = rows.map(row=>{
     const items = users.map(u => ({
@@ -651,7 +652,7 @@ function dayCard(dayLabel, items, ymd, canEdit){
   }).join('');
 
   // ✅ 여기서 주입 (함수 안이므로 await 사용 OK)
-  if (currentRole === 'admin') {
+  if (role === 'admin') {
     try {
       const rads = await loadRadiologyUsers();
       document.querySelectorAll('.rad-select').forEach(sel => {
@@ -718,7 +719,7 @@ document.addEventListener('submit', async (e)=>{
   const date   = form.dataset.date;                               // YYYY-MM-DD
   const carm   = Math.max(0, parseInt(form.carm?.value   || '0', 10));
   const arthro = Math.max(0, parseInt(form.arthro?.value || '0', 10));
-  const createdBy = (currentRole === 'admin') ? (form.who?.value || null) : null;
+  const createdBy = (role === 'admin') ? (form.who?.value || null) : null;
 
   try {
     await carmApi('/carm', {
