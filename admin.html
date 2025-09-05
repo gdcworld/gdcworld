@@ -615,11 +615,15 @@ function dayCard(dayLabel, items, ymd, canEdit){
                         background:#1f2025;color:#fff;">
         </div>
 
-        <!-- 2행: total 옆에 저장 -->
-        <div style="display:flex; align-items:center; gap:8px;">
-          <div style="font-weight:800;">total ${totalC}/${totalA}</div>
-          <button class="btn" type="submit" style="height:36px;padding:6px 14px;">저장</button>
-        </div>
+        <!-- 2행: total + 저장 + 수정 (버튼 크기 동일) -->
+<div style="display:flex; align-items:center; gap:8px;">
+  <div style="font-weight:800;">total ${totalC}/${totalA}</div>
+  <button class="btn" type="submit" style="height:36px; padding:6px 14px;">저장</button>
+  <button class="btn" type="button"
+          onclick="this.closest('form').requestSubmit()"
+          style="height:36px; padding:6px 14px;">수정</button>
+</div>
+
       </form>
       ` : ``}
     </div>
