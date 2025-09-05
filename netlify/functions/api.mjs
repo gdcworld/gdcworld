@@ -367,12 +367,14 @@ if (path === '/carm/summary' && method === 'GET') {
     return send(400, { ok:false, message:'month (YYYY-MM) required' });
   }
   const from = month + '-01';
-  const to   = month + '-31';
+// month: "YYYY-MM" → nextMonth: "YYYY-MM" 계산
+const [yy, mm] = month.split('-').map(Number);
+const nextMonth = (mm === 12)
+  ? `${yy + 1}-01-01`
+  : `${yy}-${String(mm + 1).padStart(2, '0')}-01`;
 
-  // 1) 월간 원자료 조회 (조인 없이)
-  let q = supabase.from('carm_daily')
-    .select('work_date, proc_type, qty, created_by')
-    .gte('work_date', from).lte('work_date', to)
+...
+.gte('work_date', from).lt('work_date', nextMonth)
     .order('work_date', { ascending:true });
   if (auth.role !== 'admin') q = q.eq('created_by', auth.sub);
 
