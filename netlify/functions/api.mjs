@@ -402,6 +402,7 @@ if (path === '/carm') {
       return send(405, { ok:false, message:'Method Not Allowed' });
     }
   // ───────── C-arm 월간 요약 (FK 없어도 동작하는 안전 버전) ─────────
+// ───────── C-arm 월간 요약 (FK 없어도 동작하는 안전 버전) ─────────
 if (path === '/carm/summary' && method === 'GET') {
   const check = requireRole(auth, ['radiology','admin']);
   if (!check.ok) return send(check.status, { ok:false, message:check.message });
@@ -411,17 +412,18 @@ if (path === '/carm/summary' && method === 'GET') {
   if (!month || !/^\d{4}-\d{2}$/.test(month)) {
     return send(400, { ok:false, message:'month (YYYY-MM) required' });
   }
-  const from = month + '-01';
-// month: "YYYY-MM" → nextMonth: "YYYY-MM" 계산
-const [yy, mm] = month.split('-').map(Number);
-const nextMonth = (mm === 12)
-  ? `${yy + 1}-01-01`
-  : `${yy}-${String(mm + 1).padStart(2, '0')}-01`;
+
+  const from = `${month}-01`;
+  // month: "YYYY-MM" → nextMonth: "YYYY-MM" (다음 달 1일)
+  const [yy, mm] = month.split('-').map(Number);
+  const nextMonth = (mm === 12)
+    ? `${yy + 1}-01-01`
+    : `${yy}-${String(mm + 1).padStart(2, '0')}-01`;
 
   // 1) 월간 원자료 조회 (조인 없이)
   let q = supabase.from('carm_daily')
     .select('work_date, proc_type, qty, created_by')
-   .gte('work_date', from).lt('work_date', nextMonth)
+    .gte('work_date', from).lt('work_date', nextMonth)
     .order('work_date', { ascending:true });
   if (auth.role !== 'admin') q = q.eq('created_by', auth.sub);
 
@@ -429,45 +431,47 @@ const nextMonth = (mm === 12)
   if (error) return send(400, { ok:false, message:error.message });
 
   // 2) 작성자 id → 이름 매핑 조회
-  const ids = Array.from(new Set((data||[]).map(r=>r.created_by))).filter(Boolean);
+  const ids = Array.from(new Set((data || []).map(r => r.created_by))).filter(Boolean);
   let id2name = {};
   if (ids.length) {
-    const { data:accs, error:err2 } = await supabase
+    const { data: accs, error: err2 } = await supabase
       .from('accounts').select('id,name').in('id', ids);
-    if (err2) return send(400, { ok:false, message:err2.message });
-    id2name = Object.fromEntries((accs||[]).map(a=>[a.id, a.name || '무명']));
+    if (err2) return send(400, { ok:false, message: err2.message });
+    id2name = Object.fromEntries((accs || []).map(a => [a.id, a.name || '무명']));
   }
 
   // 3) 집계
   const days = {}; const users = {}; const totals = {};
-  for (const r of (data||[])) {
+  for (const r of (data || [])) {
     const day = Number(String(r.work_date).slice(-2));
     const uname = id2name[r.created_by] || '무명';
     users[uname] = true;
     (days[day] ??= {}); (days[day][uname] ??= { carm:0, arthro:0 });
-    days[day][uname][r.proc_type] += Number(r.qty||0);
-    (totals[uname] ??= { carm:0, arthro:0 })[r.proc_type] += Number(r.qty||0);
+    days[day][uname][r.proc_type] += Number(r.qty || 0);
+    (totals[uname] ??= { carm:0, arthro:0 })[r.proc_type] += Number(r.qty || 0);
   }
 
   const userList = Object.keys(users).sort((a,b)=>a.localeCompare(b,'ko'));
   const rows = [];
-  for (let d=1; d<=31; d++){
+  for (let d = 1; d <= 31; d++) {
     const row = { day: d };
-    for (const u of userList){
-      const v = (days[d]?.[u]) || {carm:0,arthro:0};
-      row[`${u}__carm`] = v.carm; row[`${u}__arthro`] = v.arthro;
+    for (const u of userList) {
+      const v = (days[d]?.[u]) || { carm:0, arthro:0 };
+      row[`${u}__carm`] = v.carm;
+      row[`${u}__arthro`] = v.arthro;
     }
     rows.push(row);
   }
+
   return send(200, { ok:true, users: userList, rows, totals });
 }
 
 
 
+
     // 라우트 없음
     return send(404, { ok:false, error:'route_not_found', route:path, path:rawPath });
-  } catch (e) {
-    console.error(e);
-    return send(500, { ok:false, message:e?.message || 'Server error' });
-  }
+ } catch (e) {
+  console.error(e);
+  return send(500, { ok:false, message: e?.message || 'Server error' });
 }
