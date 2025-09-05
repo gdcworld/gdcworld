@@ -31,3 +31,15 @@
 }
 .hidden{ display:none !important; }
 .headerBar{ display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:12px; }
+
+.month-grid{
+  display: grid;
+  grid-template-columns: repeat(2, minmax(280px, 1fr)); /* 데스크탑 2열 */
+  gap: 16px;
+}
+
+/* 카드 테두리만 살짝 강조 (GDC 톤) */
+.month-grid .panel{
+  border: 1px solid #2d2f36;
+  border-radius: 12px;
+}
