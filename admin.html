@@ -584,8 +584,11 @@ function dayCard(dayLabel, items, ymd, canEdit){
   const totalC = items.reduce((s,x)=> s + (x.carm||0), 0);
   const totalA = items.reduce((s,x)=> s + (x.arthro||0), 0);
 
-  // 관리자에게만 보이는 "사람 선택" 드롭다운 (옵션은 Step 3에서 주입)
-  const adminSelectHTML = (role === 'admin')
+  // 👇 추가: 매번 현재 역할 읽기
+  const r = getRole();
+
+  // 관리자에게만 보이는 "사람 선택" 드롭다운
+  const adminSelectHTML = (r === 'admin')
     ? `<select name="who" class="rad-select" style="padding:8px 10px;border-radius:8px;border:1px solid #444;background:#1f2025;color:#fff;"></select>`
     : '';
 
@@ -602,8 +605,8 @@ function dayCard(dayLabel, items, ymd, canEdit){
       <div style="margin-top:8px;font-weight:700;">total ${totalC}/${totalA}</div>
 
       ${canEdit ? `
-       <form class="carm-inline" data-date="${ymd}"
-            style="margin-top:10px;display:grid;grid-template-columns:${role==='admin'?'1fr 1fr 1fr auto':'1fr 1fr auto'};gap:6px;align-items:center;">
+      <form class="carm-inline" data-date="${ymd}"
+            style="margin-top:10px;display:grid;grid-template-columns:${r==='admin'?'1fr 1fr 1fr auto':'1fr 1fr auto'};gap:6px;align-items:center;">
         ${adminSelectHTML}
         <input name="carm"   type="number" min="0" placeholder="C-arm 수(예:3)"
                style="padding:8px 10px;border-radius:8px;border:1px solid #444;background:#1f2025;color:#fff;">
@@ -616,6 +619,7 @@ function dayCard(dayLabel, items, ymd, canEdit){
     </div>
   `;
 }
+
 
 
  async function renderCarmBoard(monthStr){
