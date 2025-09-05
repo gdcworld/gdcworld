@@ -542,6 +542,29 @@
       btn.textContent = (input.type === "password") ? "보기" : "숨기기";
     });
   </script>
+
+<script>
+/* C-arm 폼 안에서 Enter, Ctrl+S/⌘S → 저장 */
+window.handleCarmHotkeys = function (e) {
+  const form = e.target && e.target.closest && e.target.closest('form.carm-inline');
+  if (!form) return;
+
+  // Ctrl+S / Cmd+S
+  if ((e.key === 's' || e.key === 'S') && (e.ctrlKey || e.metaKey)) {
+    e.preventDefault();
+    form.requestSubmit();
+    return false;
+  }
+
+  // Enter (Shift+Enter는 제외)
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    form.requestSubmit();
+    return false;
+  }
+};
+</script>
+
 <script>
 (function(){
   // API 호출: /api 우선, 실패 시 /.netlify/functions 폴백
@@ -601,7 +624,8 @@ function dayCard(dayLabel, items, ymd, canEdit){
       </div>
 
       ${canEdit ? `
-      <form class="carm-inline" data-date="${ymd}" style="margin-top:6px; display:grid; gap:8px;">
+      <form class="carm-inline" data-date="${ymd}" onkeydown="return handleCarmHotkeys(event)"
+       style="margin-top:6px; display:grid; gap:8px;">
         <!-- ② 1행: 줄바꿈 금지(flex-wrap:nowrap)로 '관절경'이 C-arm 옆에 붙도록 -->
         <div style="display:flex; align-items:center; gap:6px; flex-wrap:nowrap;">
           ${adminSelectHTML}
