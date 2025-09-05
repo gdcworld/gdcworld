@@ -373,8 +373,10 @@ const nextMonth = (mm === 12)
   ? `${yy + 1}-01-01`
   : `${yy}-${String(mm + 1).padStart(2, '0')}-01`;
 
-...
-.gte('work_date', from).lt('work_date', nextMonth)
+  // 1) 월간 원자료 조회 (조인 없이)
+  let q = supabase.from('carm_daily')
+    .select('work_date, proc_type, qty, created_by')
+   .gte('work_date', from).lt('work_date', nextMonth)
     .order('work_date', { ascending:true });
   if (auth.role !== 'admin') q = q.eq('created_by', auth.sub);
 
