@@ -131,8 +131,6 @@ export async function handler(event) {
     return send(404, { ok:false, message:'Not Found' });
   }
 
-
-  try {
     // 👇 로그인한 사용자/역할 파싱 (없으면 null)
     const auth = readAuth(event);
 
