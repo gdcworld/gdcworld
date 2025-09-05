@@ -568,15 +568,27 @@ window.handleCarmHotkeys = function (e) {
 <script>
 (function(){
   // API 호출: /api 우선, 실패 시 /.netlify/functions 폴백
-  async function carmApi(path){
-    const token = (window.Auth?.currentToken && Auth.currentToken()) || null;
-    const headers = { 'Content-Type':'application/json', ...(token ? { Authorization:`Bearer ${token}` } : {}) };
-    let r = await fetch('/api' + path, { headers });
-    if (!r.ok) r = await fetch('/.netlify/functions/api' + path, { headers });
-    const j = await r.json().catch(()=>null);
-    if (!r.ok || j?.ok === false) throw new Error(j?.message || 'request_failed');
-    return j;
-  }
+  async function carmApi(path, opts = {}){
+  const token = (window.Auth?.currentToken && Auth.currentToken()) || null;
+  const defaultHeaders = {
+    'Content-Type': 'application/json',
+    ...(token ? { Authorization: `Bearer ${token}` } : {})
+  };
+  const init = {
+    // 기본값은 GET, 호출부에서 method 지정 가능
+    method: opts.method || 'GET',
+    body: opts.body,
+    headers: { ...defaultHeaders, ...(opts.headers || {}) }
+  };
+
+  let r = await fetch('/api' + path, init);
+  if (!r.ok) r = await fetch('/.netlify/functions/api' + path, init);
+
+  let j = null;
+  try { j = await r.json(); } catch {}
+  if (!r.ok || j?.ok === false) throw new Error(j?.message || 'request_failed');
+  return j;
+}
 
   const fmtMonth = (d)=> d.toISOString().slice(0,7);
 
