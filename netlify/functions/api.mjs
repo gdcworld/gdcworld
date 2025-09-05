@@ -96,40 +96,41 @@ async function loadRolesFromDB() {
 }
 
 export async function handler(event) {
-  if (event.httpMethod === 'OPTIONS') return send(204, {});
+  if (event.httpMethod === 'OPTIONS')) return send(204, {});
 
   // 실제 path 계산 (프록시/직접호출 모두 지원)
   const rawUrl  = event.rawUrl ? new URL(event.rawUrl) : null;
   const rawPath = rawUrl ? rawUrl.pathname : (event.path || '');
 
-  // /.netlify/functions/api/...  또는 /api/...  모두 제거
+  // /.netlify/functions/api/... 또는 /api/... 제거
   let path = (rawPath || '')
     .replace(/\/.netlify\/functions\/api/i, '')
     .replace(/^\/api/i, '');
   if (!path || path === '') path = '/';
   if (!path.startsWith('/')) path = '/' + path;
 
-  const method  = (event.httpMethod || 'GET').toUpperCase();
+  const method = (event.httpMethod || 'GET').toUpperCase();
 
-  // ───────── 디버그/헬스체크 ─────────
+  // 디버그/헬스체크
   if (rawUrl && rawUrl.searchParams.get('__whoami') === '1') {
     const url = process.env.SUPABASE_URL || '';
     const m   = url.match(/^https:\/\/([^.]+)\.supabase\.co/i);
     const ref = m ? m[1] : null;
-    return send(200, { ok: true, supabaseUrl: url, projectRef: ref });
+    return send(200, { ok:true, supabaseUrl:url, projectRef:ref });
   }
   if (path === '/whoami' && method === 'GET') {
     const url = process.env.SUPABASE_URL || '';
     const m   = url.match(/^https:\/\/([^.]+)\.supabase\.co/i);
     const ref = m ? m[1] : null;
-    return send(200, { ok: true, supabaseUrl: url, projectRef: ref });
+    return send(200, { ok:true, supabaseUrl:url, projectRef:ref });
   }
   if (path === '/health' && method === 'GET') {
-    return send(200, { ok: true, message: 'alive', time: new Date().toISOString() });
+    return send(200, { ok:true, message:'alive', time:new Date().toISOString() });
   }
   if (path === '/' && method === 'GET') {
-    return send(404, { ok: false, message: 'Not Found' });
+    return send(404, { ok:false, message:'Not Found' });
   }
+
 
   try {
     // 👇 로그인한 사용자/역할 파싱 (없으면 null)
@@ -328,15 +329,12 @@ export async function handler(event) {
   const body = safeJson(event.body) || {};
   const workDate = body.workDate;
   const items = Array.isArray(body.items) ? body.items : [];
-
   if (!workDate || !/^\d{4}-\d{2}-\d{2}$/.test(workDate)) {
     return send(400, { ok:false, message:'workDate (YYYY-MM-DD) required' });
   }
 
-  // ★ 관리자라면 body.createdBy를 허용, 아니면 본인(meId)
-  const targetId = (auth.role === 'admin' && body.createdBy)
-    ? String(body.createdBy)
-    : meId;
+  // ★ 관리자라면 createdBy 허용, 아니면 본인
+  const targetId = (auth.role === 'admin' && body.createdBy) ? String(body.createdBy) : auth?.sub;
 
   const rows = items
     .filter(it => it && (it.type === 'carm' || it.type === 'arthro'))
@@ -344,8 +342,12 @@ export async function handler(event) {
       work_date: workDate,
       proc_type: it.type,
       qty: Math.max(0, parseInt(it.qty ?? 0, 10)),
-      created_by: targetId          // ← 바뀐 부분
+      created_by: targetId
     }));
+
+  // ... upsert 그대로
+}
+
 
   if (!rows.length) return send(400, { ok:false, message:'items empty' });
 
