@@ -356,6 +356,62 @@ export async function handler(event) {
 
       return send(405, { ok:false, message:'Method Not Allowed' });
     }
+   // ───────── C-arm 월간 요약 ─────────
+// GET /api/carm/summary?month=YYYY-MM
+if (path === '/carm/summary' && method === 'GET') {
+  const check = requireRole(auth, ['radiology','admin']);
+  if (!check.ok) return send(check.status, { ok:false, message:check.message });
+
+  const url   = new URL(event.rawUrl);
+  const month = url.searchParams.get('month');          // e.g., 2025-09
+  if (!month || !/^\d{4}-\d{2}$/.test(month)) {
+    return send(400, { ok:false, message:'month (YYYY-MM) required' });
+  }
+  const from = month + '-01';
+  const to   = month + '-31';
+
+  // admin은 전체, radiology는 본인만
+  let q = supabase.from('carm_daily')
+    // 조인으로 작성자 이름 얻기 (accounts.id ← created_by)
+    .select('work_date, proc_type, qty, created_by, accounts!inner(name)')
+    .gte('work_date', from).lte('work_date', to)
+    .order('work_date', { ascending:true });
+
+  if (auth.role !== 'admin') q = q.eq('created_by', auth.sub);
+
+  const { data, error } = await q;
+  if (error) return send(400, { ok:false, message:error.message });
+
+  // 집계: days[1..31][user][type] & per-user totals
+  const days = {}; const users = {}; const totals = {}; // totals[user] = {carm, arthro}
+  for (const r of (data||[])) {
+    const day = Number(String(r.work_date).slice(-2));
+    const uname = r.accounts?.name || '무명';
+    users[uname] = true;
+    days[day] ??= {};
+    days[day][uname] ??= { carm:0, arthro:0 };
+    days[day][uname][r.proc_type] += Number(r.qty||0);
+
+    totals[uname] ??= { carm:0, arthro:0 };
+    totals[uname][r.proc_type] += Number(r.qty||0);
+  }
+
+  // 응답: 사용자 목록 고정 순서, 일별 행
+  const userList = Object.keys(users).sort((a,b)=>a.localeCompare(b,'ko'));
+  const rows = [];
+  for (let d=1; d<=31; d++){
+    const row = { day: d };
+    for (const u of userList){
+      const v = (days[d]?.[u]) || {carm:0,arthro:0};
+      row[`${u}__carm`]   = v.carm;
+      row[`${u}__arthro`] = v.arthro;
+    }
+    rows.push(row);
+  }
+
+  return send(200, { ok:true, users: userList, rows, totals });
+}
+
 
     // 라우트 없음
     return send(404, { ok:false, error:'route_not_found', route:path, path:rawPath });
