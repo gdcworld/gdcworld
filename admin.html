@@ -586,50 +586,49 @@ function dayCard(dayLabel, items, ymd, canEdit){
 
   const role = (window.Auth && Auth.currentRole && Auth.currentRole()) || null;
 
-  // 관리자만 방사선사 선택 가능 (이름만 표시, 이메일 제거)
+  // 관리자만 이름(방사선사) 선택 가능 — 이메일은 제외
   const adminSelectHTML = (role === 'admin')
     ? `<select name="who" class="rad-select"
-         style="height:36px;padding:6px 10px;border-radius:8px;border:1px solid #444;
-                background:#1f2025;color:#fff;width:fit-content;max-width:280px;"></select>`
+         style="height:36px; padding:6px 10px; border-radius:8px;
+                border:1px solid #444; background:#1f2025; color:#fff;
+                width:fit-content; max-width:280px;"></select>`
     : '';
 
   return `
     <div class="panel" style="padding:10px;">
-      <!-- 날짜 바: 글자 길이에 딱 맞게 -->
-      <div style="display:inline-block;white-space:nowrap;
-                  background:var(--gold);color:#111;font-weight:700;font-size:13px;
-                  padding:4px 10px;border-radius:6px;margin-bottom:6px;">
+      <!-- 날짜 라벨: 텍스트에 딱 맞는 폭 -->
+      <div style="display:inline-block; white-space:nowrap;
+                  background:var(--gold); color:#111; font-weight:700; font-size:13px;
+                  padding:4px 10px; border-radius:6px; margin-bottom:6px;">
         ${dayLabel}
       </div>
 
-      <!-- (요청) '무명 0/0' 라인은 완전히 제거 -->
-
       ${canEdit ? `
       <form class="carm-inline" data-date="${ymd}"
-            style="margin-top:6px;display:grid;align-items:center;gap:6px;
+            style="margin-top:6px; display:grid; gap:6px; align-items:center;
                    grid-template-columns:${role==='admin'
-                     ? 'max-content 60px 60px max-content'
-                     : '60px 60px max-content'};">
+                     ? 'max-content 60px 60px max-content'   /* 이름 · C-arm · 관절경 · 저장 */
+                     : '60px 60px max-content'};">           /* (비관리자) C-arm · 관절경 · 저장 */
         ${adminSelectHTML}
 
-        <!-- (요청) total을 '이름' 바로 밑에 표시 -->
-        <div style="grid-column:1 / -1;font-weight:800;margin:2px 0 0 2px;">
+        <!-- 숫자 입력칸: 버튼과 동일 높이, 폭 60px(요청: 1/3 수준) -->
+        <input name="carm"   type="number" min="0" placeholder="C"
+               style="height:36px; width:60px; text-align:center;
+                      padding:6px 10px; border-radius:8px;
+                      border:1px solid #444; background:#1f2025; color:#fff;">
+        <input name="arthro" type="number" min="0" placeholder="관"
+               style="height:36px; width:60px; text-align:center;
+                      padding:6px 10px; border-radius:8px;
+                      border:1px solid #444; background:#1f2025; color:#fff;">
+
+        <button class="btn" type="submit" style="height:36px; padding:6px 14px;">저장</button>
+
+        <!-- total 줄: 다음 줄 전체(가로폭 100%)에 표시 -->
+        <div style="grid-column:1 / -1; font-weight:800; margin-top:2px;">
           total ${totalC}/${totalA}
         </div>
 
-        <!-- (요청) 입력칸 폭 1/3 수준으로 축소, 높이는 버튼과 동일(36px) -->
-        <input name="carm"   type="number" min="0" placeholder="C-arm"
-               style="height:36px;width:60px;text-align:center;
-                      padding:6px 10px;border-radius:8px;
-                      border:1px solid #444;background:#1f2025;color:#fff;">
-        <input name="arthro" type="number" min="0" placeholder="관절경"
-               style="height:36px;width:60px;text-align:center;
-                      padding:6px 10px;border-radius:8px;
-                      border:1px solid #444;background:#1f2025;color:#fff;">
-
-        <button class="btn" type="submit" style="height:36px;padding:6px 14px;">저장</button>
-
-        <div style="grid-column:1 / -1;font-size:12px;opacity:.8;margin-top:2px;">
+        <div style="grid-column:1 / -1; font-size:12px; opacity:.8;">
           작성자: ${(Auth && Auth.currentUserEmail && Auth.currentUserEmail()) || '로그인 계정'}
         </div>
       </form>
