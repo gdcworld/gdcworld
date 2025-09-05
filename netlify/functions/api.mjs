@@ -333,32 +333,6 @@ if (path === '/carm') {
       return send(400, { ok:false, message:'workDate (YYYY-MM-DD) required' });
     }
 
-    // ★ 관리자 대행입력 허용: createdBy가 있으면 그 사용자 ID로 기록, 아니면 본인
-    const targetId = (auth.role === 'admin' && body.createdBy) ? String(body.createdBy) : meId;
-
-    const rows = items
-      .filter(it => it && (it.type === 'carm' || it.type === 'arthro'))
-      .map(it => ({
-        work_date: workDate,
-        proc_type: it.type,
-        qty: Math.max(0, parseInt(it.qty ?? 0, 10)),
-        created_by: targetId
-      }));
-
-    if (!rows.length) return send(400, { ok:false, message:'items empty' });
-
-    const { data, error } = await supabase
-      .from('carm_daily')
-      .upsert(rows, { onConflict: 'work_date,proc_type,created_by' })
-      .select('id, work_date, proc_type, qty, created_at, updated_at, created_by');
-
-    if (error) return send(400, { ok:false, message:error.message });
-    return send(200, { ok:true, items: data });
-  } else {
-    return send(405, { ok:false, message:'Method Not Allowed' });
-  }
-}
-
 
   // ★ 관리자라면 createdBy 허용, 아니면 본인
   const targetId = (auth.role === 'admin' && body.createdBy) ? String(body.createdBy) : auth?.sub;
