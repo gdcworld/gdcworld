@@ -561,10 +561,33 @@
 const currentRole  = (window.Auth?.currentRole && Auth.currentRole()) || 'member';
 const currentEmail = (window.Auth?.currentUserEmail && Auth.currentUserEmail()) || '';
 
+let __rads = [];
+async function loadRadiologyUsers(){
+  if (currentRole !== 'admin') return [];
+  if (__rads.length) return __rads;
+
+  const token = (window.Auth?.currentToken && Auth.currentToken()) || null;
+  const headers = token ? { Authorization: `Bearer ${token}` } : {};
+  const r = await fetch('/api/accounts', { headers });
+  const j = await r.json().catch(()=>({}));
+
+  __rads = (j.items || [])
+    .filter(u => u.role === 'radiology')
+    .map(u => ({ id: u.id, name: (u.name || '무명'), email: u.email }));
+
+  return __rads;
+}
+
+
 // ✅ (기존 dayCard는 삭제하고, 이 버전만 남기기)
 function dayCard(dayLabel, items, ymd, canEdit){
   const totalC = items.reduce((s,x)=> s + (x.carm||0), 0);
   const totalA = items.reduce((s,x)=> s + (x.arthro||0), 0);
+
+  // 관리자에게만 보이는 "사람 선택" 드롭다운 (옵션은 Step 3에서 주입)
+  const adminSelectHTML = (currentRole === 'admin')
+    ? `<select name="who" class="rad-select" style="padding:8px 10px;border-radius:8px;border:1px solid #444;background:#1f2025;color:#fff;"></select>`
+    : '';
 
   return `
     <div class="panel" style="padding:10px;">
@@ -579,9 +602,13 @@ function dayCard(dayLabel, items, ymd, canEdit){
       <div style="margin-top:8px;font-weight:700;">total ${totalC}/${totalA}</div>
 
       ${canEdit ? `
-      <form class="carm-inline" data-date="${ymd}" style="margin-top:10px;display:grid;grid-template-columns:1fr 1fr auto;gap:6px;align-items:center;">
-        <input name="carm"   type="number" min="0" placeholder="C-arm 수(예:3)"  style="padding:8px 10px;border-radius:8px;border:1px solid #444;background:#1f2025;color:#fff;">
-        <input name="arthro" type="number" min="0" placeholder="관절경 수(예:1)" style="padding:8px 10px;border-radius:8px;border:1px solid #444;background:#1f2025;color:#fff;">
+      <form class="carm-inline" data-date="${ymd}"
+            style="margin-top:10px;display:grid;grid-template-columns:${currentRole==='admin'?'1fr 1fr 1fr auto':'1fr 1fr auto'};gap:6px;align-items:center;">
+        ${adminSelectHTML}
+        <input name="carm"   type="number" min="0" placeholder="C-arm 수(예:3)"
+               style="padding:8px 10px;border-radius:8px;border:1px solid #444;background:#1f2025;color:#fff;">
+        <input name="arthro" type="number" min="0" placeholder="관절경 수(예:1)"
+               style="padding:8px 10px;border-radius:8px;border:1px solid #444;background:#1f2025;color:#fff;">
         <button class="btn" type="submit" style="height:36px;">저장</button>
         <div style="grid-column:1/-1;font-size:12px;opacity:.8;">작성자: ${currentEmail || '로그인 계정'}</div>
       </form>
@@ -604,11 +631,12 @@ function dayCard(dayLabel, items, ymd, canEdit){
   const canEdit = (currentRole === 'radiology' || currentRole === 'admin');
 
   grid.innerHTML = rows.map(row=>{
-  const items = users.map(u=>({
-    name: u,
-    carm:   Number(row[`${u}__carm`]   || 0),
-    arthro: Number(row[`${u}__arthro`]|| 0),
-  }));
+  const items = users.map(u => ({
+  name: u,
+  carm:   Number(row[`${u}__carm`]   || 0),
+  arthro: Number(row[`${u}__arthro`]|| 0),
+}));
+
   const mm  = Number(monthStr.slice(5,7));
   const dd  = String(row.day).padStart(2,'0');
   const ymd = `${monthStr}-${dd}`; // YYYY-MM-DD
@@ -616,6 +644,21 @@ function dayCard(dayLabel, items, ymd, canEdit){
   return dayCard(dayLabel, items, ymd, canEdit);
 }).join('');
 }
+
+// 관리자면 각 카드의 드롭다운에 방사선사 목록 주입
+if (currentRole === 'admin') {
+  try {
+    const rads = await loadRadiologyUsers();  // Step 1에서 만든 함수
+    document.querySelectorAll('.rad-select').forEach(sel => {
+      sel.innerHTML = rads.length
+        ? rads.map(u => `<option value="${u.id}">${u.name} (${u.email})</option>`).join('')
+        : `<option value="">방사선사 없음</option>`;
+    });
+  } catch (e) {
+    console.warn('rad-select load failed:', e);
+  }
+}
+
 
 
   // month 위젯/버튼 초기화
@@ -660,15 +703,15 @@ function dayCard(dayLabel, items, ymd, canEdit){
   }
 })();
 
-// ───────── 인라인 입력 저장 이벤트 ─────────
 document.addEventListener('submit', async (e)=>{
   const form = e.target.closest('.carm-inline');
-  if (!form) return;      // 다른 폼은 무시
+  if (!form) return;             
   e.preventDefault();
 
-  const date   = form.dataset.date; // YYYY-MM-DD
+  const date   = form.dataset.date;                               // YYYY-MM-DD
   const carm   = Math.max(0, parseInt(form.carm?.value   || '0', 10));
   const arthro = Math.max(0, parseInt(form.arthro?.value || '0', 10));
+  const createdBy = (currentRole === 'admin') ? (form.who?.value || null) : null;
 
   try {
     await carmApi('/carm', {
@@ -679,17 +722,19 @@ document.addEventListener('submit', async (e)=>{
         items: [
           { type: 'carm',   qty: carm },
           { type: 'arthro', qty: arthro }
-        ]
+        ],
+        ...(createdBy ? { createdBy } : {})  // ← 관리자일 때만 전송
       })
     });
 
-    // 저장 성공 → 현재 월 다시 렌더링
+    // 저장 후 현재 월 보드 새로고침
     const mEl = document.getElementById('carmMonth');
     if (mEl?.value) await renderCarmBoard(mEl.value);
   } catch (ex) {
     alert('저장 실패: ' + (ex?.message || ex));
   }
 });
+
 
 </script>
 

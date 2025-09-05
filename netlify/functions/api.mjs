@@ -325,23 +325,39 @@ export async function handler(event) {
       }
 
       if (method === 'POST') {
-        const body = safeJson(event.body) || {};
-        const workDate = body.workDate;
-        const items = Array.isArray(body.items) ? body.items : [];
+  const body = safeJson(event.body) || {};
+  const workDate = body.workDate;
+  const items = Array.isArray(body.items) ? body.items : [];
 
-        if (!workDate || !/^\d{4}-\d{2}-\d{2}$/.test(workDate)) {
-          return send(400, { ok:false, message:'workDate (YYYY-MM-DD) required' });
-        }
+  if (!workDate || !/^\d{4}-\d{2}-\d{2}$/.test(workDate)) {
+    return send(400, { ok:false, message:'workDate (YYYY-MM-DD) required' });
+  }
 
-        // upsert 2종(carm/arthro)
-        const rows = items
-          .filter(it => it && (it.type === 'carm' || it.type === 'arthro'))
-          .map(it => ({
-            work_date: workDate,
-            proc_type: it.type,
-            qty: Math.max(0, parseInt(it.qty ?? 0, 10)),
-            created_by: meId
-          }));
+  // ★ 관리자라면 body.createdBy를 허용, 아니면 본인(meId)
+  const targetId = (auth.role === 'admin' && body.createdBy)
+    ? String(body.createdBy)
+    : meId;
+
+  const rows = items
+    .filter(it => it && (it.type === 'carm' || it.type === 'arthro'))
+    .map(it => ({
+      work_date: workDate,
+      proc_type: it.type,
+      qty: Math.max(0, parseInt(it.qty ?? 0, 10)),
+      created_by: targetId          // ← 바뀐 부분
+    }));
+
+  if (!rows.length) return send(400, { ok:false, message:'items empty' });
+
+  const { data, error } = await supabase
+    .from('carm_daily')
+    .upsert(rows, { onConflict: 'work_date,proc_type,created_by' })
+    .select('id, work_date, proc_type, qty, created_at, updated_at, created_by');
+
+  if (error) return send(400, { ok:false, message:error.message });
+  return send(200, { ok:true, items: data });
+}
+
 
         if (!rows.length) return send(400, { ok:false, message:'items empty' });
 
