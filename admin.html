@@ -542,6 +542,101 @@
       btn.textContent = (input.type === "password") ? "보기" : "숨기기";
     });
   </script>
+<script>
+(function(){
+  // API 호출: /api 우선, 실패 시 /.netlify/functions 폴백
+  async function carmApi(path){
+    const token = (window.Auth?.currentToken && Auth.currentToken()) || null;
+    const headers = { 'Content-Type':'application/json', ...(token ? { Authorization:`Bearer ${token}` } : {}) };
+    let r = await fetch('/api' + path, { headers });
+    if (!r.ok) r = await fetch('/.netlify/functions/api' + path, { headers });
+    const j = await r.json().catch(()=>null);
+    if (!r.ok || j?.ok === false) throw new Error(j?.message || 'request_failed');
+    return j;
+  }
+
+  const fmtMonth = (d)=> d.toISOString().slice(0,7);
+
+  // 일자 카드 HTML
+  function dayCard(dayLabel, items){
+    const totalC = items.reduce((s,x)=>s + (x.carm||0), 0);
+    const totalA = items.reduce((s,x)=>s + (x.arthro||0), 0);
+    return `
+      <div class="panel" style="padding:10px;">
+        <div style="background:#c4976b;color:#111;padding:6px 8px;font-weight:700;border-radius:6px;margin-bottom:8px;">
+          ${dayLabel}
+        </div>
+        <div style="display:flex;flex-direction:column;gap:4px;font-size:13px;">
+          ${items.length ? items.map(it=>`${it.name} ${it.carm||0}/${it.arthro||0}`).join('<br>') : '&nbsp;'}
+        </div>
+        <div style="margin-top:8px;font-weight:700;">total ${totalC}/${totalA}</div>
+      </div>
+    `;
+  }
+
+  async function renderCarmBoard(monthStr){
+    const grid = document.getElementById('carmBoard');
+    if (!grid) return;
+    grid.innerHTML = `<div class="panel" style="grid-column:1/-1;padding:12px;">불러오는 중…</div>`;
+
+    const j = await carmApi(`/carm/summary?month=${monthStr}`);
+    const users = j.users || [];
+    const rows  = j.rows  || []; // rows: [{day, "<이름>__carm", "<이름>__arthro", ...}]
+
+    grid.innerHTML = rows.map(row=>{
+      const items = users.map(u=>({
+        name: u,
+        carm: Number(row[`${u}__carm`]||0),
+        arthro: Number(row[`${u}__arthro`]||0),
+      }));
+      // 제목은 선택한 월을 그대로 쓰는 대신 day만 바인딩
+      const dayLabel = `${Number(monthStr.slice(5,7))}월 ${row.day}일`;
+      return dayCard(dayLabel, items);
+    }).join('');
+  }
+
+  // month 위젯/버튼 초기화
+  function initCarmMonth(){
+    const mEl = document.getElementById('carmMonth');
+    if (!mEl) return;
+    if (!mEl.value) mEl.value = fmtMonth(new Date());
+
+    const load = ()=> {
+      const v = mEl.value;
+      if (v) renderCarmBoard(v).catch(e=>alert('불러오기 실패: ' + e.message));
+    };
+
+    document.getElementById('carmMonthLoad')?.addEventListener('click', load);
+    document.getElementById('carmMonthPrev')?.addEventListener('click', ()=>{
+      const d = new Date((mEl.value || fmtMonth(new Date())) + '-01');
+      d.setMonth(d.getMonth() - 1);
+      mEl.value = fmtMonth(d);
+      load();
+    });
+    document.getElementById('carmMonthNext')?.addEventListener('click', ()=>{
+      const d = new Date((mEl.value || fmtMonth(new Date())) + '-01');
+      d.setMonth(d.getMonth() + 1);
+      mEl.value = fmtMonth(d);
+      load();
+    });
+
+    // 첫 로드
+    load();
+  }
+
+  // C-arm 탭 진입 시에만 부팅
+  document.addEventListener('click', (e)=>{
+    const btn = e.target.closest('.nav [data-view="carm"]');
+    if (btn) initCarmMonth();
+  });
+
+  // 만약 현재 탭이 이미 C-arm이라면 즉시 부팅
+  const carmPanel = document.querySelector('[data-panel="carm"]');
+  if (carmPanel && !carmPanel.classList.contains('hidden')) {
+    initCarmMonth();
+  }
+})();
+</script>
 
 <script>
 document.addEventListener('DOMContentLoaded', function () {
