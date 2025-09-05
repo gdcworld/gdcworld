@@ -253,60 +253,25 @@
         <h2 class="h1">부원장</h2>
         <div class="account-module" data-role="vice"></div>
       </section>
-       
-     <!-- NEW: C-arm 패널 -->
+
+   <!-- C-arm 월간 대시보드 -->
 <section class="panel hidden" data-panel="carm">
-  <h2 class="h1">C-arm</h2>
+  <h2 class="h1">C-arm 월간 대시보드</h2>
 
-  <div class="tools" style="gap:8px; flex-wrap:wrap;">
-    <label>날짜:
-      <input id="carmDate" type="date"
-             style="padding:8px 10px;border-radius:8px;border:1px solid #444;background:#202227;color:#fff;">
-    </label>
-    <label>C-arm:
-      <input id="carmQty" type="number" min="0" step="1" value="0"
-             style="width:90px;padding:8px 10px;border-radius:8px;border:1px solid #444;background:#202227;color:#fff;">
-    </label>
-    <label>Arthro:
-      <input id="arthroQty" type="number" min="0" step="1" value="0"
-             style="width:90px;padding:8px 10px;border-radius:8px;border:1px solid #444;background:#202227;color:#fff;">
-    </label>
-    <button class="btn" id="carmSave" type="button">저장</button>
-    <button class="btn" id="carmToday" type="button">오늘로</button>
+  <div class="tools" style="display:flex; gap:8px; margin-bottom:12px; align-items:center; flex-wrap:wrap;">
+    <input id="carmMonth" type="month"
+      style="padding:8px 10px;border-radius:8px;border:1px solid #444;background:#202227;color:#fff;">
+    <button class="btn" id="carmMonthPrev" type="button">이전</button>
+    <button class="btn" id="carmMonthNext" type="button">다음</button>
+    <button class="btn" id="carmMonthLoad" type="button">불러오기</button>
   </div>
 
-  <table class="table" id="carmTable">
-    <thead>
-      <tr><th>날짜</th><th>종류</th><th>갯수</th><th>작성일</th></tr>
-    </thead>
-    <tbody>
-      <tr><td colspan="4">데이터 없음</td></tr>
-    </tbody>
-  </table>
+  <!-- 달력형 7열 보드 -->
+  <div id="carmBoard"
+       style="display:grid; grid-template-columns:repeat(7,1fr); gap:8px;">
+    <!-- JS에서 일자 카드 생성 -->
+  </div>
 </section>
- 
-<!-- 월간 요약 -->
-<div class="panel" style="margin-top:16px;">
-  <div class="headerBar">
-    <h3 class="h1" style="margin:0;">월간 요약</h3>
-    <div style="display:flex; gap:8px; align-items:center;">
-      <input id="carmMonth" type="month"
-        style="padding:8px 10px;border-radius:8px;border:1px solid #444;background:#202227;color:#fff;">
-      <button class="btn" id="carmMonthPrev" type="button">이전</button>
-      <button class="btn" id="carmMonthNext" type="button">다음</button>
-      <button class="btn" id="carmMonthLoad" type="button">불러오기</button>
-    </div>
-  </div>
-
-  <div style="overflow:auto;">
-    <table class="table" id="carmMonthTable">
-      <thead id="carmMonthThead"><tr><th>날짜</th></tr></thead>
-      <tbody id="carmMonthTbody"><tr><td>로딩 전</td></tr></tbody>
-    </table>
-  </div>
-
-  <div class="tools" id="carmMonthTotals" style="margin-top:10px;"></div>
-</div>
 
 
       <!-- 기존 단일 패널 -->
@@ -589,176 +554,6 @@ document.addEventListener('DOMContentLoaded', function () {
   if (window.AdminUI?.init) window.AdminUI.init();
 });
 </script>
-
-<script>
-(function(){
-  // 공용 API 호출: /api 우선, 실패 시 /.netlify/functions 재시도
-  async function carmApi(path, opts={}){
-    const token = (window.Auth?.currentToken && Auth.currentToken()) || null; // 로그인 토큰 재사용
-    const headers = { 'Content-Type': 'application/json', ...(opts.headers||{}), ...(token ? { Authorization: `Bearer ${token}` } : {}) };
-    let r = await fetch('/api' + path, { ...opts, headers });
-    if (!r.ok) r = await fetch('/.netlify/functions/api' + path, { ...opts, headers });
-    const j = await r.json().catch(()=>null);
-    if (!r.ok || j?.ok === false) throw new Error(j?.message || 'request_failed');
-    return j;
-  }
-
-  async function renderCarmList(days=14){
-    const to   = new Date();
-    const from = new Date(); from.setDate(to.getDate() - (days-1));
-    const fmt  = d => d.toISOString().slice(0,10);
-    const j = await carmApi(`/carm?from=${fmt(from)}&to=${fmt(to)}`, { method:'GET' });
-    const tbody = document.querySelector('#carmTable tbody');
-    if (!tbody) return;
-    const rows = (j.items||[]).sort((a,b) => (a.work_date < b.work_date ? 1 : a.work_date > b.work_date ? -1 : a.proc_type.localeCompare(b.proc_type)));
-    tbody.innerHTML = rows.length ? rows.map(r => `
-      <tr>
-        <td>${r.work_date}</td>
-        <td>${r.proc_type === 'carm' ? 'C-arm' : 'Arthro'}</td>
-        <td>${r.qty}</td>
-        <td>${(r.created_at || '').replace('T',' ').slice(0,19)}</td>
-      </tr>
-    `).join('') : `<tr><td colspan="4">데이터 없음</td></tr>`;
-  }
-
-  async function saveCarm(){
-    const d = document.getElementById('carmDate').value;
-    const c = parseInt(document.getElementById('carmQty').value || '0', 10);
-    const a = parseInt(document.getElementById('arthroQty').value || '0', 10);
-    if (!d) { alert('날짜를 선택하세요.'); return; }
-    const items = [];
-    if (c >= 0) items.push({ type:'carm', qty:c });
-    if (a >= 0) items.push({ type:'arthro', qty:a });
-    await carmApi('/carm', { method:'POST', body: JSON.stringify({ workDate: d, items }) });
-  }
-
-  // 패널 진입 시 한 번만 초기화
-  let _carmBooted = false;
-  function initCarmPanel(){
-    if (_carmBooted) return;
-    _carmBooted = true;
-
-    const today = new Date().toISOString().slice(0,10);
-    const dateEl = document.getElementById('carmDate');
-    if (dateEl && !dateEl.value) dateEl.value = today;
-
-    document.getElementById('carmSave')?.addEventListener('click', async ()=>{
-      try { await saveCarm(); alert('저장되었습니다.'); await renderCarmList(); }
-      catch(e){ alert('저장 실패: ' + e.message); }
-    });
-    document.getElementById('carmToday')?.addEventListener('click', ()=>{
-      const t = new Date().toISOString().slice(0,10);
-      document.getElementById('carmDate').value = t;
-    });
-
-    renderCarmList();
-  }
-
-  // 네비 전환 시 app.js가 data-panel을 토글합니다.
-  // nav 버튼 클릭 때 'carm'로 전환되면 초기화 실행.
-  document.addEventListener('click', (e)=>{
-    const btn = e.target.closest('.nav button');
-    if (btn && btn.dataset.view === 'carm') initCarmPanel();
-  });
-
-  // 혹시 기본 활성 탭이 carm이면 진입시 바로 초기화
-  if (!document.querySelector('[data-panel="carm"]')?.classList.contains('hidden')) {
-    initCarmPanel();
-  }
-})();
-</script>
-
-<script>
-(function(){
-  // 월간 요약 렌더링
-  async function renderCarmMonthly(monthStr){
-    // 일간에서 쓰는 API 헬퍼 재사용
-    const j = await (async function(path){
-      const token = (window.Auth?.currentToken && Auth.currentToken()) || null;
-      const headers = { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) };
-      let r = await fetch('/api' + path, { headers });
-      if (!r.ok) r = await fetch('/.netlify/functions/api' + path, { headers });
-      const jj = await r.json().catch(()=>null);
-      if (!r.ok || jj?.ok === false) throw new Error(jj?.message || 'request_failed');
-      return jj;
-    })(`/carm/summary?month=${monthStr}`);
-
-    const users = j.users || [];
-    const thead = document.getElementById('carmMonthThead');
-    const tbody = document.getElementById('carmMonthTbody');
-    const totalsBox = document.getElementById('carmMonthTotals');
-
-    // 헤더 구성: 날짜 | (사용자별) C-arm | Arthro
-    thead.innerHTML = `<tr>
-      <th>날짜</th>
-      ${users.map(u=>`<th colspan="2">${u}</th>`).join('')}
-    </tr>
-    <tr>
-      <th></th>
-      ${users.map(()=>`<th>C-arm</th><th>Arthro</th>`).join('')}
-    </tr>`;
-
-    // 본문: 1~31일
-    tbody.innerHTML = (j.rows||[]).map(row=>`
-      <tr>
-        <td>${row.day}</td>
-        ${users.map(u=>`
-          <td>${row[`${u}__carm`]||0}</td>
-          <td>${row[`${u}__arthro`]||0}</td>
-        `).join('')}
-      </tr>
-    `).join('');
-
-    // 월 합계 뱃지
-    totalsBox.innerHTML = users.map(u=>{
-      const t = j.totals?.[u] || { carm:0, arthro:0 };
-      return `<span class="badge" style="margin-right:6px;">${u} · C-arm ${t.carm} / Arthro ${t.arthro}</span>`;
-    }).join('');
-  }
-
-  // month 위젯 & 버튼
-  const yyyymm = (d)=> d.toISOString().slice(0,7);
-  let _carmMonthBooted = false;
-  function initCarmMonth(){
-    if (_carmMonthBooted) return;
-    _carmMonthBooted = true;
-
-    const m = document.getElementById('carmMonth');
-    if (m && !m.value) m.value = yyyymm(new Date());
-
-    document.getElementById('carmMonthLoad')?.addEventListener('click', ()=>{
-      const month = document.getElementById('carmMonth').value;
-      if (month) renderCarmMonthly(month).catch(e=>alert('요약 불러오기 실패: ' + e.message));
-    });
-    document.getElementById('carmMonthPrev')?.addEventListener('click', ()=>{
-      const d = new Date((document.getElementById('carmMonth').value||yyyymm(new Date()))+'-01');
-      d.setMonth(d.getMonth()-1);
-      document.getElementById('carmMonth').value = yyyymm(d);
-      document.getElementById('carmMonthLoad').click();
-    });
-    document.getElementById('carmMonthNext')?.addEventListener('click', ()=>{
-      const d = new Date((document.getElementById('carmMonth').value||yyyymm(new Date()))+'-01');
-      d.setMonth(d.getMonth()+1);
-      document.getElementById('carmMonth').value = yyyymm(d);
-      document.getElementById('carmMonthLoad').click();
-    });
-
-    if (m && m.value) renderCarmMonthly(m.value).catch(()=>{});
-  }
-
-  // C-arm 탭 전환 시 월간도 같이 부팅
-  document.addEventListener('click', (e)=>{
-    const btn = e.target.closest('.nav button');
-    if (btn && btn.dataset.view === 'carm') initCarmMonth();
-  });
-
-  // 기본 활성 탭이 carm이면 즉시 부팅
-  if (!document.querySelector('[data-panel="carm"]')?.classList.contains('hidden')) {
-    initCarmMonth();
-  }
-})();
-</script>
-
 
 </body>
 </html>
