@@ -584,17 +584,23 @@ function dayCard(dayLabel, items, ymd, canEdit){
   const totalC = items.reduce((s,x)=> s + (x.carm||0), 0);
   const totalA = items.reduce((s,x)=> s + (x.arthro||0), 0);
 
-  // 👇 추가: 매번 현재 역할 읽기
   const r = getRole();
 
-  // 관리자에게만 보이는 "사람 선택" 드롭다운
   const adminSelectHTML = (r === 'admin')
-    ? `<select name="who" class="rad-select" style="padding:8px 10px;border-radius:8px;border:1px solid #444;background:#1f2025;color:#fff;"></select>`
+    ? `<select name="who" class="rad-select"
+         style="min-width:160px;max-width:220px;height:34px;
+                padding:6px 10px;border-radius:8px;border:1px solid #444;
+                background:#1f2025;color:#fff;"></select>`
     : '';
 
   return `
     <div class="panel" style="padding:10px;">
-      <div style="background:#c4976b;color:#111;padding:6px 8px;font-weight:700;border-radius:6px;margin-bottom:8px;">
+      <!-- 날짜 바: 폭 1/3, 낮은 높이 -->
+      <div style="
+        display:inline-block; width:33%; min-width:180px;
+        background:#c4976b;color:#111;
+        padding:4px 8px; font-weight:700; font-size:13px;
+        border-radius:6px; margin-bottom:6px;">
         ${dayLabel}
       </div>
 
@@ -602,23 +608,30 @@ function dayCard(dayLabel, items, ymd, canEdit){
         ${items.length ? items.map(it=>`${it.name} ${it.carm||0}/${it.arthro||0}`).join('<br>') : '&nbsp;'}
       </div>
 
-      <div style="margin-top:8px;font-weight:700;">total ${totalC}/${totalA}</div>
+      <div style="margin-top:6px;font-weight:700;">total ${totalC}/${totalA}</div>
 
       ${canEdit ? `
       <form class="carm-inline" data-date="${ymd}"
-            style="margin-top:10px;display:grid;grid-template-columns:${r==='admin'?'1fr 1fr 1fr auto':'1fr 1fr auto'};gap:6px;align-items:center;">
+            style="margin-top:8px;display:grid;
+                   grid-template-columns:${r==='admin'
+                     ? 'minmax(160px,220px) 110px 110px auto'
+                     : '110px 110px auto'};
+                   gap:6px;align-items:center;">
         ${adminSelectHTML}
-        <input name="carm"   type="number" min="0" placeholder="C-arm 수(예:3)"
-               style="padding:8px 10px;border-radius:8px;border:1px solid #444;background:#1f2025;color:#fff;">
-        <input name="arthro" type="number" min="0" placeholder="관절경 수(예:1)"
-               style="padding:8px 10px;border-radius:8px;border:1px solid #444;background:#1f2025;color:#fff;">
-        <button class="btn" type="submit" style="height:36px;">저장</button>
+        <input name="carm"   type="number" min="0" placeholder="C-arm"
+               style="height:34px; padding:8px 10px; border-radius:8px;
+                      border:1px solid #444;background:#1f2025;color:#fff;">
+        <input name="arthro" type="number" min="0" placeholder="관절경"
+               style="height:34px; padding:8px 10px; border-radius:8px;
+                      border:1px solid #444;background:#1f2025;color:#fff;">
+        <button class="btn" type="submit" style="height:34px;padding:8px 12px;">저장</button>
         <div style="grid-column:1/-1;font-size:12px;opacity:.8;">작성자: ${getEmail() || '로그인 계정'}</div>
       </form>
       ` : ``}
     </div>
   `;
 }
+
 
 
 
@@ -660,10 +673,10 @@ function dayCard(dayLabel, items, ymd, canEdit){
     try {
       const rads = await loadRadiologyUsers();
       document.querySelectorAll('.rad-select').forEach(sel => {
-        sel.innerHTML = rads.length
-          ? rads.map(u => `<option value="${u.id}">${u.name} (${u.email})</option>`).join('')
-          : `<option value="">방사선사 없음</option>`;
-      });
+  sel.innerHTML = rads.length
+    ? rads.map(u => `<option value="${u.id}">${u.name}</option>`).join('') // ← 이메일 제거
+    : `<option value="">방사선사 없음</option>`;
+});
     } catch (e) {
       console.warn('rad-select load failed:', e);
     }
