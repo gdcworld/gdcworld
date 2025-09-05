@@ -593,6 +593,7 @@ function dayCard(dayLabel, items, ymd, canEdit){
 
   return `
     <div class="panel" style="padding:10px;">
+      <!-- 날짜 라벨 -->
       <div style="display:inline-block;white-space:nowrap;
                   background:var(--gold);color:#111;font-weight:700;font-size:13px;
                   padding:4px 10px;border-radius:6px;margin-bottom:6px;">
@@ -600,34 +601,30 @@ function dayCard(dayLabel, items, ymd, canEdit){
       </div>
 
       ${canEdit ? `
-      <form class="carm-inline" data-date="${ymd}"
-            style="margin-top:6px;display:grid;align-items:center;gap:6px;
-                   grid-template-columns:${role==='admin'
-                     ? 'max-content 60px 60px max-content'
-                     : '60px 60px max-content'};">
-        ${adminSelectHTML}
+      <form class="carm-inline" data-date="${ymd}" style="margin-top:6px; display:grid; gap:6px;">
+        <!-- 1줄: 이름 · C-arm · 관절경 -->
+        <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
+          ${adminSelectHTML}
+          <input name="carm"   type="number" min="0" placeholder="C-arm"
+                 style="height:36px;width:60px;text-align:center;
+                        padding:6px 10px;border-radius:8px;
+                        border:1px solid #444;background:#1f2025;color:#fff;">
+          <input name="arthro" type="number" min="0" placeholder="관절경"
+                 style="height:36px;width:60px;text-align:center;
+                        padding:6px 10px;border-radius:8px;
+                        border:1px solid #444;background:#1f2025;color:#fff;">
+        </div>
 
-        <!-- ⬆️ 첫 줄: 이름 · C-arm · 관절경 · 저장 -->
-        <input name="carm"   type="number" min="0" placeholder="C-arm"
-               style="height:36px;width:60px;text-align:center;
-                      padding:6px 10px;border-radius:8px;
-                      border:1px solid #444;background:#1f2025;color:#fff;">
-        <input name="arthro" type="number" min="0" placeholder="관절경"
-               style="height:36px;width:60px;text-align:center;
-                      padding:6px 10px;border-radius:8px;
-                      border:1px solid #444;background:#1f2025;color:#fff;">
-        <button class="btn" type="submit" style="height:36px;padding:6px 14px;">저장</button>
-
-        <!-- ⬇️ 둘째 줄: total (가로 전체) -->
-        <div style="grid-column:1 / -1; font-weight:800; margin-top:4px;">
-          total ${totalC}/${totalA}
+        <!-- 2줄: total 바로 옆에 '저장' (버튼 크기는 그대로) -->
+        <div style="display:flex; align-items:center; gap:8px;">
+          <div style="font-weight:800;">total ${totalC}/${totalA}</div>
+          <button class="btn" type="submit" style="height:36px; padding:6px 14px;">저장</button>
         </div>
       </form>
       ` : ``}
     </div>
   `;
 }
-
 
  async function renderCarmBoard(monthStr){
   const grid = document.getElementById('carmBoard');
