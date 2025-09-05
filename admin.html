@@ -618,46 +618,53 @@ function dayCard(dayLabel, items, ymd, canEdit){
 }
 
 
-  async function renderCarmBoard(monthStr){
+ async function renderCarmBoard(monthStr){
   const grid = document.getElementById('carmBoard');
   if (!grid) return;
   grid.innerHTML = `<div class="panel" style="grid-column:1/-1;padding:12px;">불러오는 중…</div>`;
 
-  const j = await carmApi(`/carm/summary?month=${monthStr}`);
+  // 안전하게 호출 (권한 에러 등 표시)
+  let j;
+  try {
+    j = await carmApi(`/carm/summary?month=${encodeURIComponent(monthStr)}`);
+  } catch (e) {
+    grid.innerHTML = `<div class="panel" style="grid-column:1/-1;padding:12px;">불러오기 실패: ${e?.message || e}</div>`;
+    return;
+  }
+
   const users = j.users || [];
   const rows  = j.rows  || [];
 
-  // radiology, admin만 입력 가능 (백엔드 권한과 일치)
   const canEdit = (currentRole === 'radiology' || currentRole === 'admin');
 
   grid.innerHTML = rows.map(row=>{
-  const items = users.map(u => ({
-  name: u,
-  carm:   Number(row[`${u}__carm`]   || 0),
-  arthro: Number(row[`${u}__arthro`]|| 0),
-}));
+    const items = users.map(u => ({
+      name: u,
+      carm:   Number(row[`${u}__carm`]   || 0),
+      arthro: Number(row[`${u}__arthro`]|| 0),
+    }));
+    const mm  = Number(monthStr.slice(5,7));
+    const dd  = String(row.day).padStart(2,'0');
+    const ymd = `${monthStr}-${dd}`;
+    const dayLabel = `${mm}월 ${row.day}일`;
+    return dayCard(dayLabel, items, ymd, canEdit);
+  }).join('');
 
-  const mm  = Number(monthStr.slice(5,7));
-  const dd  = String(row.day).padStart(2,'0');
-  const ymd = `${monthStr}-${dd}`; // YYYY-MM-DD
-  const dayLabel = `${mm}월 ${row.day}일`;
-  return dayCard(dayLabel, items, ymd, canEdit);
-}).join('');
-}
-
-// 관리자면 각 카드의 드롭다운에 방사선사 목록 주입
-if (currentRole === 'admin') {
-  try {
-    const rads = await loadRadiologyUsers();  // Step 1에서 만든 함수
-    document.querySelectorAll('.rad-select').forEach(sel => {
-      sel.innerHTML = rads.length
-        ? rads.map(u => `<option value="${u.id}">${u.name} (${u.email})</option>`).join('')
-        : `<option value="">방사선사 없음</option>`;
-    });
-  } catch (e) {
-    console.warn('rad-select load failed:', e);
+  // ✅ 여기서 주입 (함수 안이므로 await 사용 OK)
+  if (currentRole === 'admin') {
+    try {
+      const rads = await loadRadiologyUsers();
+      document.querySelectorAll('.rad-select').forEach(sel => {
+        sel.innerHTML = rads.length
+          ? rads.map(u => `<option value="${u.id}">${u.name} (${u.email})</option>`).join('')
+          : `<option value="">방사선사 없음</option>`;
+      });
+    } catch (e) {
+      console.warn('rad-select load failed:', e);
+    }
   }
 }
+
 
 
 
