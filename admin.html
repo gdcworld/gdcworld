@@ -558,13 +558,12 @@
   const fmtMonth = (d)=> d.toISOString().slice(0,7);
 
 // ✅ (스크립트 상단, 함수 바깥)
-const currentRole  = (window.Auth?.currentRole && Auth.currentRole()) || 'member';
-const currentEmail = (window.Auth?.currentUserEmail && Auth.currentUserEmail()) || '';
-const role = (currentRole || '').toLowerCase();
+const getRole  = () => ((window.Auth?.currentRole && Auth.currentRole()) || 'member').toLowerCase();
+const getEmail = () => (window.Auth?.currentUserEmail && Auth.currentUserEmail()) || '';
 
 let __rads = [];
 async function loadRadiologyUsers(){
-  if (currentRole !== 'admin') return [];
+  if (getRole() !== 'admin') return [];
   if (__rads.length) return __rads;
 
   const token = (window.Auth?.currentToken && Auth.currentToken()) || null;
@@ -611,7 +610,7 @@ function dayCard(dayLabel, items, ymd, canEdit){
         <input name="arthro" type="number" min="0" placeholder="관절경 수(예:1)"
                style="padding:8px 10px;border-radius:8px;border:1px solid #444;background:#1f2025;color:#fff;">
         <button class="btn" type="submit" style="height:36px;">저장</button>
-        <div style="grid-column:1/-1;font-size:12px;opacity:.8;">작성자: ${currentEmail || '로그인 계정'}</div>
+        <div style="grid-column:1/-1;font-size:12px;opacity:.8;">작성자: ${getEmail() || '로그인 계정'}</div>
       </form>
       ` : ``}
     </div>
@@ -636,7 +635,8 @@ function dayCard(dayLabel, items, ymd, canEdit){
   const users = j.users || [];
   const rows  = j.rows  || [];
 
-  const canEdit = (role === 'radiology' || role === 'admin');
+  const role = getRole();
+ const canEdit = (role === 'radiology' || role === 'admin');
 
   grid.innerHTML = rows.map(row=>{
     const items = users.map(u => ({
@@ -652,7 +652,7 @@ function dayCard(dayLabel, items, ymd, canEdit){
   }).join('');
 
   // ✅ 여기서 주입 (함수 안이므로 await 사용 OK)
-  if (role === 'admin') {
+  if (getRole() === 'admin') {
     try {
       const rads = await loadRadiologyUsers();
       document.querySelectorAll('.rad-select').forEach(sel => {
@@ -719,7 +719,7 @@ document.addEventListener('submit', async (e)=>{
   const date   = form.dataset.date;                               // YYYY-MM-DD
   const carm   = Math.max(0, parseInt(form.carm?.value   || '0', 10));
   const arthro = Math.max(0, parseInt(form.arthro?.value || '0', 10));
-  const createdBy = (role === 'admin') ? (form.who?.value || null) : null;
+  const createdBy = (getRole() === 'admin') ? (form.who?.value || null) : null;
 
   try {
     await carmApi('/carm', {
