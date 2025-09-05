@@ -622,10 +622,6 @@ function dayCard(dayLabel, items, ymd, canEdit){
         <div style="grid-column:1 / -1; font-weight:800; margin-top:4px;">
           total ${totalC}/${totalA}
         </div>
-
-        <div style="grid-column:1 / -1; font-size:12px; opacity:.8; margin-top:2px;">
-          작성자: ${(Auth && Auth.currentUserEmail && Auth.currentUserEmail()) || '로그인 계정'}
-        </div>
       </form>
       ` : ``}
     </div>
