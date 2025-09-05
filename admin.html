@@ -557,43 +557,66 @@
 
   const fmtMonth = (d)=> d.toISOString().slice(0,7);
 
-  // 일자 카드 HTML
-  function dayCard(dayLabel, items){
-    const totalC = items.reduce((s,x)=>s + (x.carm||0), 0);
-    const totalA = items.reduce((s,x)=>s + (x.arthro||0), 0);
-    return `
-      <div class="panel" style="padding:10px;">
-        <div style="background:#c4976b;color:#111;padding:6px 8px;font-weight:700;border-radius:6px;margin-bottom:8px;">
-          ${dayLabel}
-        </div>
-        <div style="display:flex;flex-direction:column;gap:4px;font-size:13px;">
-          ${items.length ? items.map(it=>`${it.name} ${it.carm||0}/${it.arthro||0}`).join('<br>') : '&nbsp;'}
-        </div>
-        <div style="margin-top:8px;font-weight:700;">total ${totalC}/${totalA}</div>
+// ✅ (스크립트 상단, 함수 바깥)
+const currentRole  = (window.Auth?.currentRole && Auth.currentRole()) || 'member';
+const currentEmail = (window.Auth?.currentUserEmail && Auth.currentUserEmail()) || '';
+
+// ✅ (기존 dayCard는 삭제하고, 이 버전만 남기기)
+function dayCard(dayLabel, items, ymd, canEdit){
+  const totalC = items.reduce((s,x)=> s + (x.carm||0), 0);
+  const totalA = items.reduce((s,x)=> s + (x.arthro||0), 0);
+
+  return `
+    <div class="panel" style="padding:10px;">
+      <div style="background:#c4976b;color:#111;padding:6px 8px;font-weight:700;border-radius:6px;margin-bottom:8px;">
+        ${dayLabel}
       </div>
-    `;
-  }
+
+      <div style="display:flex;flex-direction:column;gap:4px;font-size:13px;">
+        ${items.length ? items.map(it=>`${it.name} ${it.carm||0}/${it.arthro||0}`).join('<br>') : '&nbsp;'}
+      </div>
+
+      <div style="margin-top:8px;font-weight:700;">total ${totalC}/${totalA}</div>
+
+      ${canEdit ? `
+      <form class="carm-inline" data-date="${ymd}" style="margin-top:10px;display:grid;grid-template-columns:1fr 1fr auto;gap:6px;align-items:center;">
+        <input name="carm"   type="number" min="0" placeholder="C-arm 수(예:3)"  style="padding:8px 10px;border-radius:8px;border:1px solid #444;background:#1f2025;color:#fff;">
+        <input name="arthro" type="number" min="0" placeholder="관절경 수(예:1)" style="padding:8px 10px;border-radius:8px;border:1px solid #444;background:#1f2025;color:#fff;">
+        <button class="btn" type="submit" style="height:36px;">저장</button>
+        <div style="grid-column:1/-1;font-size:12px;opacity:.8;">작성자: ${currentEmail || '로그인 계정'}</div>
+      </form>
+      ` : ``}
+    </div>
+  `;
+}
+
 
   async function renderCarmBoard(monthStr){
-    const grid = document.getElementById('carmBoard');
-    if (!grid) return;
-    grid.innerHTML = `<div class="panel" style="grid-column:1/-1;padding:12px;">불러오는 중…</div>`;
+  const grid = document.getElementById('carmBoard');
+  if (!grid) return;
+  grid.innerHTML = `<div class="panel" style="grid-column:1/-1;padding:12px;">불러오는 중…</div>`;
 
-    const j = await carmApi(`/carm/summary?month=${monthStr}`);
-    const users = j.users || [];
-    const rows  = j.rows  || []; // rows: [{day, "<이름>__carm", "<이름>__arthro", ...}]
+  const j = await carmApi(`/carm/summary?month=${monthStr}`);
+  const users = j.users || [];
+  const rows  = j.rows  || [];
 
-    grid.innerHTML = rows.map(row=>{
-      const items = users.map(u=>({
-        name: u,
-        carm: Number(row[`${u}__carm`]||0),
-        arthro: Number(row[`${u}__arthro`]||0),
-      }));
-      // 제목은 선택한 월을 그대로 쓰는 대신 day만 바인딩
-      const dayLabel = `${Number(monthStr.slice(5,7))}월 ${row.day}일`;
-      return dayCard(dayLabel, items);
-    }).join('');
-  }
+  // radiology, admin만 입력 가능 (백엔드 권한과 일치)
+  const canEdit = (currentRole === 'radiology' || currentRole === 'admin');
+
+  grid.innerHTML = rows.map(row=>{
+  const items = users.map(u=>({
+    name: u,
+    carm:   Number(row[`${u}__carm`]   || 0),
+    arthro: Number(row[`${u}__arthro`]|| 0),
+  }));
+  const mm  = Number(monthStr.slice(5,7));
+  const dd  = String(row.day).padStart(2,'0');
+  const ymd = `${monthStr}-${dd}`; // YYYY-MM-DD
+  const dayLabel = `${mm}월 ${row.day}일`;
+  return dayCard(dayLabel, items, ymd, canEdit);
+}).join('');
+}
+
 
   // month 위젯/버튼 초기화
   function initCarmMonth(){
@@ -636,6 +659,38 @@
     initCarmMonth();
   }
 })();
+
+// ───────── 인라인 입력 저장 이벤트 ─────────
+document.addEventListener('submit', async (e)=>{
+  const form = e.target.closest('.carm-inline');
+  if (!form) return;      // 다른 폼은 무시
+  e.preventDefault();
+
+  const date   = form.dataset.date; // YYYY-MM-DD
+  const carm   = Math.max(0, parseInt(form.carm?.value   || '0', 10));
+  const arthro = Math.max(0, parseInt(form.arthro?.value || '0', 10));
+
+  try {
+    await carmApi('/carm', {
+      method: 'POST',
+      headers: { 'Content-Type':'application/json' },
+      body: JSON.stringify({
+        workDate: date,
+        items: [
+          { type: 'carm',   qty: carm },
+          { type: 'arthro', qty: arthro }
+        ]
+      })
+    });
+
+    // 저장 성공 → 현재 월 다시 렌더링
+    const mEl = document.getElementById('carmMonth');
+    if (mEl?.value) await renderCarmBoard(mEl.value);
+  } catch (ex) {
+    alert('저장 실패: ' + (ex?.message || ex));
+  }
+});
+
 </script>
 
 <script>
@@ -648,7 +703,9 @@ document.addEventListener('DOMContentLoaded', function () {
   // 기존 초기화 이어서
   if (window.AdminUI?.init) window.AdminUI.init();
 });
-</script>
 
+
+</script>
+ 
 </body>
 </html>
