@@ -285,7 +285,7 @@
 
   <!-- 인증/로그아웃/네비 스크립트 -->
   <script>
-    document.addEventListener('DOMContentLoaded', function(){
+document.addEventListener('DOMContentLoaded', function(){
   if (!window.Auth) { alert('auth.js 로드 실패'); return; }
   Auth.requireRole();
 
@@ -299,7 +299,8 @@
 
   if (window.AdminUI?.init) window.AdminUI.init();
 
-      const VIEW_ACCESS = {
+  // ─ 역할 접근표 ─
+  const VIEW_ACCESS = {
     admin:'ALL',
     frontdesk:['income','closing'],
     nurse:['consumables-*','drugs-*'],
@@ -307,11 +308,7 @@
     ptadmin:[], radiology:['carm'], vice:[], staff:[], member:[]
   };
 
-
-
-      const role = (window.Auth && Auth.currentRole && Auth.currentRole()) || 'member';
-
-      function matchesAny(id, patterns){
+  function matchesAny(id, patterns){
     return patterns.some(p=>{
       if (p === '*') return true;
       if (p.endsWith('*')) return id.startsWith(p.slice(0,-1));
@@ -319,32 +316,27 @@
     });
   }
 
-      function applyRoleVisibility(roleStr){
+  // ▼ allow/allowAll을 이 함수 "안에서"만 사용
+  function applyRoleVisibility(roleStr){
     const allow = (roleStr in VIEW_ACCESS) ? VIEW_ACCESS[roleStr] : [];
     const allowAll = allow === 'ALL';
-    const firstBtn  = document.querySelector('.nav [data-view]:not(.hidden)');
-    const firstView = firstBtn ? firstBtn.dataset.view : null;
-    if (firstView && typeof showPanel === 'function') showPanel(firstView);
-    else document.querySelectorAll('[data-panel]').forEach(p => p.classList.add('hidden'));
-  }
 
-        // 버튼(그룹 외 단일 버튼 + 하위 항목 버튼)
-        document.querySelectorAll('.nav [data-view]').forEach(btn=>{
+    // 버튼 토글
+    document.querySelectorAll('.nav [data-view]').forEach(btn=>{
       const v = btn.dataset.view;
       const ok = allowAll || matchesAny(v, allow);
       btn.classList.toggle('hidden', !ok);
     });
 
-
-        // 패널
-        document.querySelectorAll('[data-panel]').forEach(p=>{
+    // 패널 토글
+    document.querySelectorAll('[data-panel]').forEach(p=>{
       const id = p.dataset.panel;
       const ok = allowAll || matchesAny(id, allow);
       p.classList.toggle('hidden', !ok);
     });
 
-        // 서브그룹 자체도 전부 숨김이면 감춤
-        document.querySelectorAll('.nav-group').forEach(grp=>{
+    // 비어있는 그룹 감추기
+    document.querySelectorAll('.nav-group').forEach(grp=>{
       const subs = grp.querySelectorAll('.subitem[data-view]');
       if (subs.length){
         const anyVisible = Array.from(subs).some(s=>!s.classList.contains('hidden'));
@@ -352,19 +344,15 @@
       }
     });
 
-        // 초기 패널 고정: 허용된 첫 메뉴 → showPanel
-        const firstBtn = document.querySelector('.nav [data-view]:not(.hidden)');
-        const firstView = firstBtn ? firstBtn.dataset.view : null;
-       if (firstView && typeof showPanel === 'function') {
-        showPanel(firstView);
-        } else {
-       // 허용된 메뉴가 없으면 모든 패널 감춤 (직원은 파트너 패널 안 뜨게)
-       document.querySelectorAll('[data-panel]').forEach(p => p.classList.add('hidden'));
+    // 첫 허용 메뉴로 진입(있을 때만)
+    const firstBtn  = document.querySelector('.nav [data-view]:not(.hidden)');
+    const firstView = firstBtn ? firstBtn.dataset.view : null;
+    if (firstView && typeof showPanel === 'function') showPanel(firstView);
+    else document.querySelectorAll('[data-panel]').forEach(p => p.classList.add('hidden'));
   }
- }
 
-      // 그룹 토글
-      document.querySelectorAll('.nav-parent').forEach(parent=>{
+  // 사이드바 토글/클릭
+  document.querySelectorAll('.nav-parent').forEach(parent=>{
     const targetSel = parent.getAttribute('data-collapse-target');
     const box = targetSel ? document.querySelector(targetSel) : null;
     parent.addEventListener('click', ()=>{
@@ -373,44 +361,25 @@
       if (box) box.classList.toggle('open', !open);
     });
   });
-
-      // 하위 항목 클릭 시 패널 표시
-      document.querySelectorAll('.nav [data-view]').forEach(btn=>{
+  document.querySelectorAll('.nav [data-view]').forEach(btn=>{
     btn.addEventListener('click', ()=> showPanel(btn.dataset.view));
   });
 
-
-      const titleMap = {
-        'noncovered-dosu':'도수 치료',
-        'noncovered-shock':'충격파',
-        'noncovered-dosu-note':'도수치료 상담일지',
-        'noncovered-shock-note':'충격파 상담일지',
-        'noncovered-chart':'환자 차트',
-        'consumables-main':'소모품',
-        'consumables-stock':'소모품 (재고관리)',
-        'consumables-balance':'소모품 (잔고현황)',
-        'consumables-byvendor':'소모품 (거래처별)',
-        'drugs-main':'의약품',
-        'drugs-stock':'의약품 (재고관리)',
-        'drugs-balance':'의약품 (잔고현황)',
-        'drugs-byvendor':'의약품 (거래처별)',
-        'accounts-physio':'물리치료사',
-        'accounts-ptadmin':'PT관리자',
-        'accounts-nurse':'간호사',
-        'accounts-frontdesk':'원무',
-        'accounts-radiology':'방사선사',
-        'accounts-vice':'부원장',
-        'partners':'계약 병원(파트너)',
-        'categories':'카테고리 관리',
-        'income':'수입/지출',
-        'nhis':'공단 수령 현황',
-        'revisit':'재진율',
-        'claims':'진료비 청구 내역',
-        'closing':'마감일지',
-        'carm':'C-arm'
-      };
-
-      window.showPanel = function(id){
+  // 패널 전환
+  const titleMap = {
+    'noncovered-dosu':'도수 치료', 'noncovered-shock':'충격파',
+    'noncovered-dosu-note':'도수치료 상담일지', 'noncovered-shock-note':'충격파 상담일지',
+    'noncovered-chart':'환자 차트',
+    'consumables-main':'소모품','consumables-stock':'소모품 (재고관리)',
+    'consumables-balance':'소모품 (잔고현황)','consumables-byvendor':'소모품 (거래처별)',
+    'drugs-main':'의약품','drugs-stock':'의약품 (재고관리)','drugs-balance':'의약품 (잔고현황)','drugs-byvendor':'의약품 (거래처별)',
+    'accounts-physio':'물리치료사','accounts-ptadmin':'PT관리자','accounts-nurse':'간호사',
+    'accounts-frontdesk':'원무','accounts-radiology':'방사선사','accounts-vice':'부원장',
+    'partners':'계약 병원(파트너)','categories':'카테고리 관리',
+    'income':'수입/지출','nhis':'공단 수령 현황','revisit':'재진율','claims':'진료비 청구 내역','closing':'마감일지',
+    'carm':'C-arm'
+  };
+  window.showPanel = function(id){
     document.querySelectorAll('[data-panel]').forEach(p=>{
       p.classList.toggle('hidden', p.getAttribute('data-panel') !== id);
     });
@@ -425,10 +394,10 @@
     }
   };
 
-applyRoleVisibility(role);
+  // ☆ 마지막에 한 번만 호출
+  applyRoleVisibility(role);
 });
-
-  </script>
+</script>
 
   <!-- 계정관리 테이블 모듈 -->
   <script src="assets/accounts.js?v=3" defer></script>
@@ -792,8 +761,6 @@ document.addEventListener('DOMContentLoaded', function () {
 
   // ✅ Plan A: 로그인만 요구 (역할 제한 없음)
   Auth.requireRole(); // 세션 없으면 자동으로 login.html로 보냄
-
-  const role = (window.Auth && Auth.currentRole && Auth.currentRole()) || 'member';
   if (role !== 'admin') document.getElementById('pageTitle')?.classList.add('hidden');
 
   if (window.AdminUI?.init) window.AdminUI.init();
