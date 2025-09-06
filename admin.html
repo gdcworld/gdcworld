@@ -391,6 +391,7 @@ document.addEventListener('DOMContentLoaded', function(){
     if (window.__bootAccountsModules) {
       const panelEl = document.querySelector(`[data-panel="${id}"]`);
       window.__bootAccountsModules(panelEl);
+     if (id === 'carm' && window.initCarmMonth) window.initCarmMonth(); 
     }
   };
 
@@ -679,15 +680,19 @@ function dayCard(dayLabel, items, ymd, canEdit){
 
 
   // month 위젯/버튼 초기화
-  function initCarmMonth(){
-    const mEl = document.getElementById('carmMonth');
-    if (!mEl) return;
-    if (!mEl.value) mEl.value = fmtMonth(new Date());
+  ffunction initCarmMonth(){
+  const panel = document.querySelector('[data-panel="carm"]');
+  if (panel?.dataset.inited === '1') return;   // ← 이미 초기화되었으면 재실행 X
+  if (panel) panel.dataset.inited = '1';
 
-    const load = ()=> {
-      const v = mEl.value;
-      if (v) renderCarmBoard(v).catch(e=>alert('불러오기 실패: ' + e.message));
-    };
+  const mEl = document.getElementById('carmMonth');
+  if (!mEl) return;
+  if (!mEl.value) mEl.value = fmtMonth(new Date());
+
+  const load = () => {
+    const v = mEl.value;
+    if (v) renderCarmBoard(v).catch(e => alert('불러오기 실패: ' + e.message));
+  };
 
     document.getElementById('carmMonthLoad')?.addEventListener('click', load);
     document.getElementById('carmMonthPrev')?.addEventListener('click', ()=>{
@@ -706,7 +711,7 @@ function dayCard(dayLabel, items, ymd, canEdit){
     // 첫 로드
     load();
   }
-
+window.initCarmMonth = initCarmMonth;
   // C-arm 탭 진입 시에만 부팅
   document.addEventListener('click', (e)=>{
     const btn = e.target.closest('.nav [data-view="carm"]');
@@ -759,14 +764,19 @@ document.addEventListener('submit', async (e)=>{
 document.addEventListener('DOMContentLoaded', function () {
   if (!window.Auth) { alert('auth.js 로드 실패'); return; }
 
-  // ✅ Plan A: 로그인만 요구 (역할 제한 없음)
-  Auth.requireRole(); // 세션 없으면 자동으로 login.html로 보냄
+  // 로그인(세션) 확인
+  Auth.requireRole();
+    const role = ((window.Auth && Auth.currentRole && Auth.currentRole()) || 'member').toLowerCase();
   if (role !== 'admin') document.getElementById('pageTitle')?.classList.add('hidden');
 
   if (window.AdminUI?.init) window.AdminUI.init();
+
+  // ② C-arm 패널이 보이는 상태면 달력 부팅
+  const carmPanel = document.querySelector('[data-panel="carm"]');
+  if (carmPanel && !carmPanel.classList.contains('hidden')) {
+    window.initCarmMonth?.();
+  }
 });
-
-
 </script>
  
 </body>
