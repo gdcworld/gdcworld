@@ -334,6 +334,11 @@ document.addEventListener('DOMContentLoaded', function(){
       const ok = allowAll || matchesAny(id, allow);
       p.classList.toggle('hidden', !ok);
     });
+     
+  if (roleStr !== 'admin') {
+    document.querySelector('[data-view="partners"]')?.classList.add('hidden');
+    document.querySelector('[data-panel="partners"]')?.classList.add('hidden');
+  }
 
     // 비어있는 그룹 감추기
     document.querySelectorAll('.nav-group').forEach(grp=>{
@@ -381,6 +386,13 @@ document.addEventListener('DOMContentLoaded', function(){
     'carm':'C-arm'
   };
   window.showPanel = function(id){
+   const roleNow = (window.Auth?.currentRole?.() || 'member').toLowerCase();
+  if (id === 'partners' && roleNow !== 'admin') {
+    const prefer = document.querySelector('.nav [data-view="carm"]:not(.hidden)');
+    const fb = prefer || document.querySelector('.nav [data-view]:not(.hidden)');
+    if (!fb) { document.querySelectorAll('[data-panel]').forEach(p=>p.classList.add('hidden')); return; }
+    id = fb.dataset.view; // radiology면 C-arm, 그 외엔 각자 첫 메뉴
+  }
     document.querySelectorAll('[data-panel]').forEach(p=>{
       p.classList.toggle('hidden', p.getAttribute('data-panel') !== id);
     });
