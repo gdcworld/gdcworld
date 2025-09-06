@@ -147,7 +147,7 @@
       </div>
 
       <!-- 계약 병원(파트너) -->
-      <section class="panel" data-panel="partners" id="partnersBox">
+      <section class="panel hidden" data-panel="partners" id="partnersBox">
         <h2 class="h1">계약 병원(파트너) 매출</h2>
         <div class="tools">
           <label>병원 선택:
@@ -287,7 +287,8 @@
   <script>
     document.addEventListener('DOMContentLoaded', function(){
       if (!window.Auth) { alert('auth.js 로드 실패'); return; }
-
+   const role = ((window.Auth && Auth.currentRole && Auth.currentRole()) || 'member').toLowerCase();
+   if (role !== 'admin') document.getElementById('pageTitle')?.classList.add('hidden');
       // ✅ Plan A: 로그인만 요구 (역할 제한 없음)
       Auth.requireRole(); /* (기존) Auth.requireRole(['admin']) */
 
@@ -340,6 +341,14 @@
       function applyRoleVisibility(role){
         const allow = (role in VIEW_ACCESS) ? VIEW_ACCESS[role] : [];
         const allowAll = allow === 'ALL';
+       const firstBtn  = document.querySelector('.nav [data-view]:not(.hidden)');
+  const firstView = firstBtn ? firstBtn.dataset.view : null;
+  if (firstView && typeof showPanel === 'function') {
+    showPanel(firstView);
+  } else {
+    document.querySelectorAll('[data-panel]').forEach(p => p.classList.add('hidden'));
+  }
+}
 
         // 버튼(그룹 외 단일 버튼 + 하위 항목 버튼)
         document.querySelectorAll('.nav [data-view]').forEach(btn=>{
