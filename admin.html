@@ -593,12 +593,11 @@ function dayCard(dayLabel, items, ymd, canEdit){
   const role = (window.Auth && Auth.currentRole && Auth.currentRole()) || null;
 
   /* ① 이름 셀렉트: 너무 넓어지지 않게 최대폭 ↓ (280 → 140), 줄바꿈 방지 */
-  const adminSelectHTML = (role === 'admin')
+  const adminSelectHTML = (role === 'admin' || role === 'radiology')
     ? `<select name="who" class="rad-select"
-         style="height:36px;padding:6px 10px;border-radius:8px;border:1px solid #444;
-                background:#1f2025;color:#fff; width:auto; max-width:140px;
-                flex:0 0 auto; white-space:nowrap;"></select>`
-    : '';
+       style="height:36px;padding:6px 10px;border-radius:8px;border:1px solid #444;
+              background:#1f2025;color:#fff; width:auto; max-width:140px; flex:0 0 auto; white-space:nowrap;"></select>`
+  : '';
 
   return `
     <div class="panel" style="padding:10px;">
@@ -672,19 +671,31 @@ function dayCard(dayLabel, items, ymd, canEdit){
 }).join('');
 
 
-  // ✅ 여기서 주입 (함수 안이므로 await 사용 OK)
-  if (getRole() === 'admin') {
-    try {
-      const rads = await loadRadiologyUsers();
-      document.querySelectorAll('.rad-select').forEach(sel => {
-  sel.innerHTML = rads.length
-    ? rads.map(u => `<option value="${u.id}">${u.name}</option>`).join('') // ← 이메일 제거
-    : `<option value="">방사선사 없음</option>`;
-});
-    } catch (e) {
-      console.warn('rad-select load failed:', e);
-    }
+ const roleNow = getRole();
+
+if (roleNow === 'admin') {
+  // 관리자: 방사선사 전체 목록 옵션
+  try {
+    const rads = await loadRadiologyUsers();
+    document.querySelectorAll('.rad-select').forEach(sel => {
+      sel.innerHTML = rads.length
+        ? rads.map(u => `<option value="${u.id}">${u.name}</option>`).join('')
+        : `<option value="">방사선사 없음</option>`;
+    });
+  } catch (e) {
+    console.warn('rad-select load failed:', e);
   }
+
+} else if (roleNow === 'radiology') {
+  // 방사선사: 관리자 건수 확인용으로 [본인] / [관리자] 두 옵션만 노출
+  const email = (typeof getEmail === 'function' ? (getEmail() || '') : '');
+  const meLabel = email.split('@')[0] || '본인';
+  document.querySelectorAll('.rad-select').forEach(sel => {
+    sel.innerHTML = `
+      <option value="me">${meLabel}</option>
+      <option value="admin">관리자</option>
+    `;
+  });
 }
 
 

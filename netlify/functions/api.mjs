@@ -359,14 +359,24 @@ export async function handler(event) {
       ? `${yy + 1}-01-01`
       : `${yy}-${String(mm + 1).padStart(2, '0')}-01`;
 
-    let q = supabase.from('carm_daily')
-      .select('work_date, proc_type, qty, created_by')
-      .gte('work_date', from).lt('work_date', nextMonth)
-      .order('work_date', { ascending:true });
-    if (auth.role !== 'admin') q = q.eq('created_by', auth.sub);
+   let q = supabase.from('carm_daily')
+  .select('work_date, proc_type, qty, created_by')
+  .gte('work_date', from).lt('work_date', nextMonth)
+  .order('work_date', { ascending: true });
 
-    const { data, error } = await q;
-    if (error) return send(400, { ok:false, message:error.message });
+if (auth.role === 'radiology') {
+  // 방사선사: 본인 + 관리자 데이터 조회 허용
+  const { data: admins } = await supabase
+    .from('accounts').select('id').eq('role', 'admin');   // ← 점(. ) 추가!
+  const adminIds = (admins || []).map(a => a.id);
+  q = q.in('created_by', [auth.sub, ...adminIds]);
+} else if (auth.role !== 'admin') {
+  // 그 외(안 쓰지만 방어): 본인만
+  q = q.eq('created_by', auth.sub);
+}
+
+const { data, error } = await q;
+if (error) return send(400, { ok: false, message: error.message });
 
     // id → 이름 매핑
     const ids = Array.from(new Set((data || []).map(r => r.created_by))).filter(Boolean);
