@@ -286,92 +286,71 @@
   <!-- 인증/로그아웃/네비 스크립트 -->
   <script>
     document.addEventListener('DOMContentLoaded', function(){
-      if (!window.Auth) { alert('auth.js 로드 실패'); return; }
-   const role = ((window.Auth && Auth.currentRole && Auth.currentRole()) || 'member').toLowerCase();
-   if (role !== 'admin') document.getElementById('pageTitle')?.classList.add('hidden');
-      // ✅ Plan A: 로그인만 요구 (역할 제한 없음)
-      Auth.requireRole(); /* (기존) Auth.requireRole(['admin']) */
+  if (!window.Auth) { alert('auth.js 로드 실패'); return; }
+  Auth.requireRole();
 
-      const emailEl = document.getElementById('whoami');
-      if (emailEl) emailEl.textContent = Auth.currentUserEmail() || '';
+  // 비관리자 헤더 숨김
+  const role = ((window.Auth && Auth.currentRole && Auth.currentRole()) || 'member').toLowerCase();
+  if (role !== 'admin') document.getElementById('pageTitle')?.classList.add('hidden');
 
-      const btn = document.getElementById('logoutBtn');
-      if (btn) btn.addEventListener('click', function(){
-        Auth.logout();
-        location.replace('index.html');
-      });
+  const emailEl = document.getElementById('whoami');
+  if (emailEl) emailEl.textContent = Auth.currentUserEmail() || '';
+  document.getElementById('logoutBtn')?.addEventListener('click', ()=>{ Auth.logout(); location.replace('index.html'); });
 
-      if (window.AdminUI?.init) window.AdminUI.init();
+  if (window.AdminUI?.init) window.AdminUI.init();
 
-      // ──────────────────────────────────────────────────────────────
-      // 역할별 메뉴/패널 가시성 제어 (디자인 불변)
-      // ──────────────────────────────────────────────────────────────
       const VIEW_ACCESS = {
-  admin: 'ALL',
-
-  // 원무 = 수입/지출, 마감일지
-  frontdesk: ['income', 'closing'],
-
-  // 간호 = 소모품, 의약품
-  nurse: ['consumables-*', 'drugs-*'],
-
-  // 물리치료사 = 비급여치료
-  physio: ['noncovered-*'],
-
-  // 나머지 역할은 기본적으로 접근 제한
-  ptadmin: [],
-  radiology: ['carm'],
-  vice: [],
-  staff: [],
-  member: []
-};
+    admin:'ALL',
+    frontdesk:['income','closing'],
+    nurse:['consumables-*','drugs-*'],
+    physio:['noncovered-*'],
+    ptadmin:[], radiology:['carm'], vice:[], staff:[], member:[]
+  };
 
 
 
       const role = (window.Auth && Auth.currentRole && Auth.currentRole()) || 'member';
 
       function matchesAny(id, patterns){
-        return patterns.some(p=>{
-          if (p === '*') return true;
-          if (p.endsWith('*')) return id.startsWith(p.slice(0,-1));
-          return p === id;
-        });
-      }
-
-      function applyRoleVisibility(role){
-        const allow = (role in VIEW_ACCESS) ? VIEW_ACCESS[role] : [];
-        const allowAll = allow === 'ALL';
-       const firstBtn  = document.querySelector('.nav [data-view]:not(.hidden)');
-  const firstView = firstBtn ? firstBtn.dataset.view : null;
-  if (firstView && typeof showPanel === 'function') {
-    showPanel(firstView);
-  } else {
-    document.querySelectorAll('[data-panel]').forEach(p => p.classList.add('hidden'));
+    return patterns.some(p=>{
+      if (p === '*') return true;
+      if (p.endsWith('*')) return id.startsWith(p.slice(0,-1));
+      return p === id;
+    });
   }
-}
+
+      function applyRoleVisibility(roleStr){
+    const allow = (roleStr in VIEW_ACCESS) ? VIEW_ACCESS[roleStr] : [];
+    const allowAll = allow === 'ALL';
+    const firstBtn  = document.querySelector('.nav [data-view]:not(.hidden)');
+    const firstView = firstBtn ? firstBtn.dataset.view : null;
+    if (firstView && typeof showPanel === 'function') showPanel(firstView);
+    else document.querySelectorAll('[data-panel]').forEach(p => p.classList.add('hidden'));
+  }
 
         // 버튼(그룹 외 단일 버튼 + 하위 항목 버튼)
         document.querySelectorAll('.nav [data-view]').forEach(btn=>{
-          const v = btn.dataset.view;
-          const ok = allowAll || matchesAny(v, allow);
-          btn.classList.toggle('hidden', !ok);
-        });
+      const v = btn.dataset.view;
+      const ok = allowAll || matchesAny(v, allow);
+      btn.classList.toggle('hidden', !ok);
+    });
+
 
         // 패널
         document.querySelectorAll('[data-panel]').forEach(p=>{
-          const id = p.dataset.panel;
-          const ok = allowAll || matchesAny(id, allow);
-          p.classList.toggle('hidden', !ok);
-        });
+      const id = p.dataset.panel;
+      const ok = allowAll || matchesAny(id, allow);
+      p.classList.toggle('hidden', !ok);
+    });
 
         // 서브그룹 자체도 전부 숨김이면 감춤
         document.querySelectorAll('.nav-group').forEach(grp=>{
-          const subs = grp.querySelectorAll('.subitem[data-view]');
-          if (subs.length){
-            const anyVisible = Array.from(subs).some(s=>!s.classList.contains('hidden'));
-            grp.classList.toggle('hidden', !anyVisible);
-          }
-        });
+      const subs = grp.querySelectorAll('.subitem[data-view]');
+      if (subs.length){
+        const anyVisible = Array.from(subs).some(s=>!s.classList.contains('hidden'));
+        grp.classList.toggle('hidden', !anyVisible);
+      }
+    });
 
         // 초기 패널 고정: 허용된 첫 메뉴 → showPanel
         const firstBtn = document.querySelector('.nav [data-view]:not(.hidden)');
@@ -383,23 +362,23 @@
        document.querySelectorAll('[data-panel]').forEach(p => p.classList.add('hidden'));
   }
  }
-      applyRoleVisibility(role);
 
       // 그룹 토글
       document.querySelectorAll('.nav-parent').forEach(parent=>{
-        const targetSel = parent.getAttribute('data-collapse-target');
-        const box = targetSel ? document.querySelector(targetSel) : null;
-        parent.addEventListener('click', ()=>{
-          const open = parent.getAttribute('aria-expanded') === 'true';
-          parent.setAttribute('aria-expanded', String(!open));
-          if (box) box.classList.toggle('open', !open);
-        });
-      });
+    const targetSel = parent.getAttribute('data-collapse-target');
+    const box = targetSel ? document.querySelector(targetSel) : null;
+    parent.addEventListener('click', ()=>{
+      const open = parent.getAttribute('aria-expanded') === 'true';
+      parent.setAttribute('aria-expanded', String(!open));
+      if (box) box.classList.toggle('open', !open);
+    });
+  });
 
       // 하위 항목 클릭 시 패널 표시
       document.querySelectorAll('.nav [data-view]').forEach(btn=>{
-       btn.addEventListener('click', ()=> showPanel(btn.dataset.view));
-      });
+    btn.addEventListener('click', ()=> showPanel(btn.dataset.view));
+  });
+
 
       const titleMap = {
         'noncovered-dosu':'도수 치료',
@@ -432,24 +411,23 @@
       };
 
       window.showPanel = function(id){
-        document.querySelectorAll('[data-panel]').forEach(p=>{
-          p.classList.toggle('hidden', p.getAttribute('data-panel') !== id);
-        });
-
-        const h = document.getElementById('pageTitle');
-        if (h) h.textContent = titleMap[id] || h.textContent;
-
-        document.querySelectorAll('.subitem').forEach(b=>{
-          b.classList.toggle('active', b.dataset.view === id);
-        });
-
-        // ▼ 탭 전환 시 해당 패널 내부 account-module만 부팅
-        if (window.__bootAccountsModules) {
-          const panelEl = document.querySelector(`[data-panel="${id}"]`);
-          window.__bootAccountsModules(panelEl);
-        }
-      };
+    document.querySelectorAll('[data-panel]').forEach(p=>{
+      p.classList.toggle('hidden', p.getAttribute('data-panel') !== id);
     });
+    const h = document.getElementById('pageTitle');
+    if (h) h.textContent = titleMap[id] || h.textContent;
+    document.querySelectorAll('.subitem').forEach(b=>{
+      b.classList.toggle('active', b.dataset.view === id);
+    });
+    if (window.__bootAccountsModules) {
+      const panelEl = document.querySelector(`[data-panel="${id}"]`);
+      window.__bootAccountsModules(panelEl);
+    }
+  };
+
+applyRoleVisibility(role);
+});
+
   </script>
 
   <!-- 계정관리 테이블 모듈 -->
