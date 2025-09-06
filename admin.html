@@ -345,8 +345,9 @@ document.addEventListener('DOMContentLoaded', function(){
     });
 
     // 첫 허용 메뉴로 진입(있을 때만)
-    const firstBtn  = document.querySelector('.nav [data-view]:not(.hidden)');
-    const firstView = firstBtn ? firstBtn.dataset.view : null;
+    const prefer    = document.querySelector('.nav [data-view="carm"]:not(.hidden)');
+    const firstBtn  = prefer || document.querySelector('.nav [data-view]:not(.hidden)');
+     const firstView = firstBtn ? firstBtn.dataset.view : null;
     if (firstView && typeof showPanel === 'function') showPanel(firstView);
     else document.querySelectorAll('[data-panel]').forEach(p => p.classList.add('hidden'));
   }
@@ -390,9 +391,9 @@ document.addEventListener('DOMContentLoaded', function(){
     });
     if (window.__bootAccountsModules) {
       const panelEl = document.querySelector(`[data-panel="${id}"]`);
-      window.__bootAccountsModules(panelEl);
-     if (id === 'carm' && window.initCarmMonth) window.initCarmMonth(); 
+     window.__bootAccountsModules(panelEl);
     }
+      if (id === 'carm' && window.initCarmMonth) window.initCarmMonth();
   };
 
   // ☆ 마지막에 한 번만 호출
@@ -680,7 +681,7 @@ function dayCard(dayLabel, items, ymd, canEdit){
 
 
   // month 위젯/버튼 초기화
-  ffunction initCarmMonth(){
+  function initCarmMonth(){
   const panel = document.querySelector('[data-panel="carm"]');
   if (panel?.dataset.inited === '1') return;   // ← 이미 초기화되었으면 재실행 X
   if (panel) panel.dataset.inited = '1';
