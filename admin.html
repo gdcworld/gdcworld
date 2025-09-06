@@ -338,7 +338,7 @@
       }
 
       function applyRoleVisibility(role){
-        const allow = VIEW_ACCESS[role] ?? ['partners'];
+        const allow = (role in VIEW_ACCESS) ? VIEW_ACCESS[role] : [];
         const allowAll = allow === 'ALL';
 
         // 버튼(그룹 외 단일 버튼 + 하위 항목 버튼)
@@ -366,9 +366,13 @@
 
         // 초기 패널 고정: 허용된 첫 메뉴 → showPanel
         const firstBtn = document.querySelector('.nav [data-view]:not(.hidden)');
-        const firstView = firstBtn ? firstBtn.dataset.view : 'partners';
-        if (typeof showPanel === 'function') showPanel(firstView);
-      }
+ const firstView = firstBtn ? firstBtn.dataset.view : null;
+ if (firstView && typeof showPanel === 'function') {
+   showPanel(firstView);
+ } else {
+   // 허용된 메뉴가 없으면 모든 패널 감춤 (직원은 파트너 패널 안 뜨게)
+   document.querySelectorAll('[data-panel]').forEach(p => p.classList.add('hidden'));
+ }
 
       applyRoleVisibility(role);
 
@@ -802,7 +806,9 @@ document.addEventListener('DOMContentLoaded', function () {
   // ✅ Plan A: 로그인만 요구 (역할 제한 없음)
   Auth.requireRole(); // 세션 없으면 자동으로 login.html로 보냄
 
-  // 기존 초기화 이어서
+  const role = (window.Auth && Auth.currentRole && Auth.currentRole()) || 'member';
+  if (role !== 'admin') document.getElementById('pageTitle')?.classList.add('hidden');
+
   if (window.AdminUI?.init) window.AdminUI.init();
 });
 
