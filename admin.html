@@ -366,12 +366,12 @@
 
         // 초기 패널 고정: 허용된 첫 메뉴 → showPanel
         const firstBtn = document.querySelector('.nav [data-view]:not(.hidden)');
- const firstView = firstBtn ? firstBtn.dataset.view : null;
- if (firstView && typeof showPanel === 'function') {
-   showPanel(firstView);
- } else {
-   // 허용된 메뉴가 없으면 모든 패널 감춤 (직원은 파트너 패널 안 뜨게)
-   document.querySelectorAll('[data-panel]').forEach(p => p.classList.add('hidden'));
+        const firstView = firstBtn ? firstBtn.dataset.view : null;
+       if (firstView && typeof showPanel === 'function') {
+        showPanel(firstView);
+        } else {
+       // 허용된 메뉴가 없으면 모든 패널 감춤 (직원은 파트너 패널 안 뜨게)
+       document.querySelectorAll('[data-panel]').forEach(p => p.classList.add('hidden'));
   }
  }
       applyRoleVisibility(role);
