@@ -693,12 +693,9 @@ if (roleNow === 'admin') {
   });
 } catch (e) {
   console.warn('carm/users load failed:', e);
- }
+}
 }
 
-
-
-  // month 위젯/버튼 초기화
   function initCarmMonth(){
   const panel = document.querySelector('[data-panel="carm"]');
   if (panel?.dataset.inited === '1') return;   // ← 이미 초기화되었으면 재실행 X
