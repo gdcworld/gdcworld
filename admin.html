@@ -568,21 +568,19 @@ window.handleCarmHotkeys = function (e) {
 const getRole  = () => ((window.Auth?.currentRole && Auth.currentRole()) || 'member').toLowerCase();
 const getEmail = () => (window.Auth?.currentUserEmail && Auth.currentUserEmail()) || '';
 
-let __rads = [];
-async function loadRadiologyUsers(){
-  if (getRole() !== 'admin') return [];
-  if (__rads.length) return __rads;
+let __carmUsers = null;
+async function loadCarmUsers(){
+  if (__carmUsers) return __carmUsers;
 
   const token = (window.Auth?.currentToken && Auth.currentToken()) || null;
   const headers = token ? { Authorization: `Bearer ${token}` } : {};
-  const r = await fetch('/api/accounts', { headers });
+  const r = await fetch('/api/carm/users', { headers });
   const j = await r.json().catch(()=>({}));
 
-  __rads = (j.items || [])
-    .filter(u => u.role === 'radiology')
-    .map(u => ({ id: u.id, name: (u.name || '무명'), email: u.email }));
-
-  return __rads;
+  const admins = (j.admins || []).map(u => ({ id:u.id, name:u.name || '관리자' }));
+  const radios = (j.radiology || []).map(u => ({ id:u.id, name:u.name || '무명' }));
+  __carmUsers = [...admins, ...radios];     // 관리자 우선, 다음 방사선사
+  return __carmUsers;
 }
 
 
@@ -676,27 +674,25 @@ function dayCard(dayLabel, items, ymd, canEdit){
 if (roleNow === 'admin') {
   // 관리자: 방사선사 전체 목록 옵션
   try {
-    const rads = await loadRadiologyUsers();
-    document.querySelectorAll('.rad-select').forEach(sel => {
-      sel.innerHTML = rads.length
-        ? rads.map(u => `<option value="${u.id}">${u.name}</option>`).join('')
-        : `<option value="">방사선사 없음</option>`;
-    });
-  } catch (e) {
-    console.warn('rad-select load failed:', e);
-  }
-
-} else if (roleNow === 'radiology') {
-  // 방사선사: 관리자 건수 확인용으로 [본인] / [관리자] 두 옵션만 노출
-  const email = (typeof getEmail === 'function' ? (getEmail() || '') : '');
-  const meLabel = email.split('@')[0] || '본인';
-  document.querySelectorAll('.rad-select').forEach(sel => {
-    sel.innerHTML = `
-      <option value="me">${meLabel}</option>
-      <option value="admin">관리자</option>
-    `;
+  const r = await fetch('/api/carm/users', {
+    headers: {
+      'Content-Type': 'application/json',
+      ...(window.Auth?.currentToken?.() ? { Authorization: `Bearer ${Auth.currentToken()}` } : {})
+    }
   });
- }
+  const j = await r.json();
+  const admins = (j.admins || []).map(x => ({ id: x.id, name: x.name || '관리자' }));
+  const radios  = (j.radiology || []).map(x => ({ id: x.id, name: x.name || '무명' }));
+
+  const optsHTML = [...admins, ...radios]
+    .map(u => `<option value="${u.id}">${u.name}</option>`)
+    .join('');
+
+  document.querySelectorAll('.rad-select').forEach(sel => {
+    sel.innerHTML = optsHTML;
+  });
+} catch (e) {
+  console.warn('carm/users load failed:', e);
 }
 
 

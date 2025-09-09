@@ -137,6 +137,25 @@ export async function handler(event) {
     const roles = await loadRolesFromDB();
     return send(200, { ok:true, items: roles });
   }
+// ───────── C-arm 사용자 목록 (admin + radiology 전용) ─────────
+if (path === '/carm/users' && method === 'GET') {
+  const check = requireRole(auth, ['admin','radiology']);
+  if (!check.ok) return send(check.status, { ok:false, message: check.message });
+
+  const { data: admins, error: e1 } = await supabase
+    .from('accounts').select('id,name').eq('role','admin')
+    .order('created_at', { ascending: true });
+  if (e1) return send(400, { ok:false, message: e1.message });
+
+  const { data: rads, error: e2 } = await supabase
+    .from('accounts').select('id,name').eq('role','radiology')
+    .order('name', { ascending: true });
+  if (e2) return send(400, { ok:false, message: e2.message });
+
+  return send(200, { ok:true, admins: admins || [], radiology: rads || [] });
+}
+
+
 
   // ───────── 로그인 ─────────
   if (path === '/login' && method === 'POST') {
@@ -365,13 +384,14 @@ export async function handler(event) {
   .order('work_date', { ascending: true });
 
 if (auth.role === 'radiology') {
-  // 방사선사: 본인 + 관리자 데이터 조회 허용
-  const { data: admins } = await supabase
-    .from('accounts').select('id').eq('role', 'admin');   // ← 점(. ) 추가!
+  const { data: admins } = await supabase.from('accounts')
+    .select('id').eq('role', 'admin');
+  const { data: radios } = await supabase.from('accounts')
+    .select('id').eq('role', 'radiology');
   const adminIds = (admins || []).map(a => a.id);
-  q = q.in('created_by', [auth.sub, ...adminIds]);
+  const radioIds = (radios  || []).map(a => a.id);
+  q = q.in('created_by', [...adminIds, ...radioIds]);
 } else if (auth.role !== 'admin') {
-  // 그 외(안 쓰지만 방어): 본인만
   q = q.eq('created_by', auth.sub);
 }
 
