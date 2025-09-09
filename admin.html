@@ -671,9 +671,7 @@ function dayCard(dayLabel, items, ymd, canEdit){
 
  const roleNow = getRole();
 
-if (roleNow === 'admin') {
-  // 관리자: 방사선사 전체 목록 옵션
-  try {
+try {
   const r = await fetch('/api/carm/users', {
     headers: {
       'Content-Type': 'application/json',
