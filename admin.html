@@ -508,7 +508,7 @@ window.handleCarmHotkeys = function (e) {
 <script>
 (function(){
   // API 호출: /api 우선, 실패 시 /.netlify/functions 폴백
-  async function carmApi(path, opts = {}){
+  window.carmApi = async function(path, opts = {}){
   const token = (window.Auth?.currentToken && Auth.currentToken()) || null;
   const defaultHeaders = {
     'Content-Type': 'application/json',
