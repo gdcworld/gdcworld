@@ -611,7 +611,7 @@ function dayCard(dayLabel, items, ymd, canEdit){
   // 안전하게 호출 (권한 에러 등 표시)
   let j;
   try {
-    j = await carmApi(`/carm/summary?month=${encodeURIComponent(monthStr)}`);
+   j = await carmApi(`/carm/summary?month=${encodeURIComponent(monthStr)}&_=${Date.now()}`);
   } catch (e) {
     grid.innerHTML = `<div class="panel" style="grid-column:1/-1;padding:12px;">불러오기 실패: ${e?.message || e}</div>`;
     return;
