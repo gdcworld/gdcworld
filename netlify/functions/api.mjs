@@ -325,40 +325,54 @@ if (path === '/carm/users' && method === 'GET') {
   }
 
   if (method === 'POST') {
-    const body = safeJson(event.body) || {};
-    const workDate = body.workDate;
-    const items    = Array.isArray(body.items) ? body.items : [];
+  const body = safeJson(event.body) || {};
+  const workDate = body.workDate;
+  const items    = Array.isArray(body.items) ? body.items : [];
 
-    // 입력 검증
-    if (!workDate || !/^\d{4}-\d{2}-\d{2}$/.test(workDate)) {
-      return send(400, { ok:false, message:'workDate (YYYY-MM-DD) required' });
-    }
-
-    // 관리자면 createdBy(선택 사용자), 아니면 본인 ID로 저장
-    const targetId = (auth.role === 'admin' && body.createdBy)
-      ? String(body.createdBy)
-      : meId;
-
-    // (work_date, created_by, proc_type) 기준 UPSERT → 사람별로 1행
-    const rows = items
-      .filter(it => it && (it.type === 'carm' || it.type === 'arthro'))
-      .map(it => ({
-        work_date: workDate,
-        proc_type: it.type,
-        qty: Math.max(0, parseInt(it.qty ?? 0, 10)),
-        created_by: targetId
-      }));
-
-    if (!rows.length) return send(400, { ok:false, message:'items empty' });
-
-    const { data, error } = await supabase
-      .from('carm_daily')
-      .upsert(rows, { onConflict: 'work_date,proc_type,created_by' })
-      .select('id, work_date, proc_type, qty, created_at, updated_at, created_by');
-
-    if (error) return send(400, { ok:false, message:error.message });
-    return send(200, { ok:true, items: data });
+  if (!workDate || !/^\d{4}-\d{2}-\d{2}$/.test(workDate)) {
+    return send(400, { ok:false, message:'workDate (YYYY-MM-DD) required' });
   }
+
+  // 관리자면 createdBy 사용, 아니면 본인
+  const targetId = (auth.role === 'admin' && body.createdBy)
+    ? String(body.createdBy)
+    : meId;
+
+  // 관심 타입만 필터링
+  const wanted = items
+    .filter(it => it && (it.type === 'carm' || it.type === 'arthro'))
+    .map(it => ({ type: it.type, qty: Math.max(0, parseInt(it.qty ?? 0, 10)) }));
+
+  if (!wanted.length) return send(400, { ok:false, message:'items empty' });
+
+  // 1) 기존 값 읽기
+  const { data: existing, error: selErr } = await supabase
+    .from('carm_daily')
+    .select('proc_type, qty')
+    .eq('work_date', workDate)
+    .eq('created_by', targetId)
+    .in('proc_type', wanted.map(w => w.type));
+
+  if (selErr) return send(400, { ok:false, message: selErr.message });
+
+  const prevMap = Object.fromEntries((existing || []).map(r => [r.proc_type, Number(r.qty || 0)]));
+
+  // 2) 누적(기존 + 신규) 값으로 upsert
+  const rows = wanted.map(w => ({
+    work_date:  workDate,
+    proc_type:  w.type,
+    created_by: targetId,
+    qty:        (prevMap[w.type] || 0) + w.qty
+  }));
+
+  const { data, error } = await supabase
+    .from('carm_daily')
+    .upsert(rows, { onConflict: 'work_date,proc_type,created_by' })
+    .select('id, work_date, proc_type, qty, created_at, updated_at, created_by');
+
+  if (error) return send(400, { ok:false, message:error.message });
+  return send(200, { ok:true, items: data });
+}
 
   return send(405, { ok:false, message:'Method Not Allowed' });
 }
