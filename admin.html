@@ -621,7 +621,7 @@ function dayCard(dayLabel, items, ymd, canEdit){
   const rows  = j.rows  || [];
 
   const role = getRole();
- const canEdit = (role === 'radiology' || role === 'admin');
+const canEdit = ['admin', 'radiology'].includes(role);
 
   grid.innerHTML = rows.map(row=>{
     const items = users.map(u => ({

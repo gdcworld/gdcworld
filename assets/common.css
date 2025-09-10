@@ -62,3 +62,6 @@
 }
 .subitem:hover{ background:#e5f3ff; }
 .subitem.active{ background:#d8edff; border-left-color:#3aa2ff; color:#123; font-weight:700; }
+
+.btn { pointer-events: auto; opacity: 1; }  
+.btn[disabled] { opacity: .5; }           
