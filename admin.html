@@ -709,9 +709,8 @@ window.initCarmMonth = initCarmMonth;
 
 document.addEventListener('submit', async (e)=>{
   const form = e.target.closest('.carm-inline');
-  if (!form) return;             
+  if (!form) return;
   e.preventDefault();
-}, true);
 
   const date   = form.dataset.date;                               // YYYY-MM-DD
   const carm   = Math.max(0, parseInt(form.carm?.value   || '0', 10));
@@ -730,7 +729,7 @@ document.addEventListener('submit', async (e)=>{
         ],
         ...(createdBy ? { createdBy } : {})  // ← 관리자일 때만 전송
       })
-   });
+    });
 
     // 저장 후 현재 월 보드 새로고침
     const mEl = document.getElementById('carmMonth');
@@ -738,7 +737,7 @@ document.addEventListener('submit', async (e)=>{
   } catch (ex) {
     alert('저장 실패: ' + (ex?.message || ex));
   }
-});
+}, true);
 
 
 </script>
