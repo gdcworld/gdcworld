@@ -711,6 +711,7 @@ document.addEventListener('submit', async (e)=>{
   const form = e.target.closest('.carm-inline');
   if (!form) return;             
   e.preventDefault();
+}, true);
 
   const date   = form.dataset.date;                               // YYYY-MM-DD
   const carm   = Math.max(0, parseInt(form.carm?.value   || '0', 10));
@@ -729,7 +730,7 @@ document.addEventListener('submit', async (e)=>{
         ],
         ...(createdBy ? { createdBy } : {})  // ← 관리자일 때만 전송
       })
-   }, true);
+   });
 
     // 저장 후 현재 월 보드 새로고침
     const mEl = document.getElementById('carmMonth');
