@@ -707,12 +707,13 @@ window.initCarmMonth = initCarmMonth;
   }
 })();
 
+<script>
 document.addEventListener('submit', async (e)=>{
   const form = e.target.closest('.carm-inline');
   if (!form) return;
   e.preventDefault();
 
-  const date   = form.dataset.date;                               // YYYY-MM-DD
+  const date   = form.dataset.date;
   const carm   = Math.max(0, parseInt(form.carm?.value   || '0', 10));
   const arthro = Math.max(0, parseInt(form.arthro?.value || '0', 10));
   const createdBy = (getRole() === 'admin') ? (form.who?.value || null) : null;
@@ -727,19 +728,18 @@ document.addEventListener('submit', async (e)=>{
           { type: 'carm',   qty: carm },
           { type: 'arthro', qty: arthro }
         ],
-        ...(createdBy ? { createdBy } : {})  // ← 관리자일 때만 전송
+        ...(createdBy ? { createdBy } : {})
       })
     });
 
-    // 저장 후 현재 월 보드 새로고침
     const mEl = document.getElementById('carmMonth');
-    if (mEl?.value) await renderCarmBoard(mEl.value);
+    if (mEl?.value) {
+      await renderCarmBoard(mEl.value);
+    }
   } catch (ex) {
     alert('저장 실패: ' + (ex?.message || ex));
   }
 }, true);
-
-
 </script>
  
 </body>
