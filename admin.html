@@ -22,38 +22,6 @@
   <!-- 공통 CSS -->
   <link rel="stylesheet" href="assets/common.css">
 
-  <!-- 화면 크기 오버라이드 + 서브메뉴 스타일 -->
-  <style>
-    .layout {
-      width: min(1600px, 96vw);
-      grid-template-columns: 240px 1fr;
-      min-height: calc(100vh - 80px);
-      margin: 80px auto;
-      border-radius: 16px;
-      box-shadow: 0 8px 24px rgba(0,0,0,.25);
-      background: rgba(0,0,0,.2);
-    }
-    /* ▼ 사이드바 그룹/서브메뉴 */
-    .nav-group{ display:flex; flex-direction:column; }
-    .nav-parent{
-      display:flex; align-items:center; justify-content:space-between;
-      width:100%; padding:12px 18px; border:0; background:transparent; cursor:pointer;
-      color:#123; font-weight:700; border-left:4px solid transparent;
-    }
-    .nav-parent:hover{ background:#d8f0ff; }
-    .nav-parent.active{ background:#cbe9ff; border-left-color:#3aa2ff; }
-    .nav-parent .chev{ transition: transform .15s ease; }
-    .nav-parent[aria-expanded="true"] .chev{ transform: rotate(180deg); }
-
-    .subnav{ display:none; padding:8px 0 12px 12px; background:#eef8ff; }
-    .subnav.open{ display:block; }
-    .subitem{
-      width:100%; text-align:left; padding:10px 24px; border:0; background:transparent; cursor:pointer;
-      color:#345; border-left:4px solid transparent;
-    }
-    .subitem:hover{ background:#e5f3ff; }
-    .subitem.active{ background:#d8edff; border-left-color:#3aa2ff; color:#123; font-weight:700; }
-  </style>
 
   <!-- 스크립트 -->
   <script src="assets/auth.js?v=1" defer></script>
@@ -772,42 +740,6 @@ document.addEventListener('submit', async (e)=>{
 });
 
 
-</script>
-
-<script>
-document.addEventListener('DOMContentLoaded', function () {
-  if (!window.Auth) { alert('auth.js 로드 실패'); return; }
-
-  // 로그인(세션) 확인
-  Auth.requireRole();
-
-  // 비관리자 헤더 숨김
-  const role = (window.Auth?.currentRole?.() || 'member').toLowerCase();
-  if (role !== 'admin') document.getElementById('pageTitle')?.classList.add('hidden');
-
-  // (선택) 이 줄은 메인 초기화의 applyRoleVisibility(role) "이후"로 옮기는 걸 권장
-  // if (window.AdminUI?.init) window.AdminUI.init();
-
-  // 최종 세이프가드: 비관리자 첫 화면이 'partners'면 즉시 회피
-  requestAnimationFrame(() => {
-    const roleNow = (window.Auth?.currentRole?.() || 'member').toLowerCase();
-    if (roleNow !== 'admin') {
-      const vis = document.querySelector('[data-panel]:not(.hidden)');
-      if (vis?.dataset.panel === 'partners') {
-        const prefer = document.querySelector('.nav [data-view="carm"]:not(.hidden)');
-        const fb = prefer || document.querySelector('.nav [data-view]:not(.hidden)');
-        if (fb && typeof showPanel === 'function') showPanel(fb.dataset.view);
-        else document.querySelectorAll('[data-panel]').forEach(p => p.classList.add('hidden'));
-      }
-    }
-
-    // C-arm 패널이 보이면 달력 부팅
-    const carmPanel = document.querySelector('[data-panel="carm"]');
-    if (carmPanel && !carmPanel.classList.contains('hidden')) {
-      window.initCarmMonth?.();
-    }
-  });
-});
 </script>
  
 </body>

@@ -32,3 +32,33 @@
 .hidden{ display:none !important; }
 .headerBar{ display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:12px; }
 
+
+
+/* === admin 전용: 레이아웃/네비/서브메뉴 공통화 === */
+.layout{
+  width:min(1600px, 96vw);
+  grid-template-columns:240px 1fr;
+  min-height:calc(100vh - 80px);
+  margin:80px auto;
+  border-radius:16px;
+  box-shadow:0 8px 24px rgba(0,0,0,.25);
+  background:rgba(0,0,0,.2);
+}
+.nav-group{ display:flex; flex-direction:column; }
+.nav-parent{
+  display:flex; align-items:center; justify-content:space-between; width:100%;
+  padding:12px 18px; border:0; background:transparent; cursor:pointer; color:#123; font-weight:700;
+  border-left:4px solid transparent;
+}
+.nav-parent:hover{ background:#d8f0ff; }
+.nav-parent.active{ background:#cbe9ff; border-left-color:#3aa2ff; }
+.nav-parent .chev{ transition:transform .15s ease; }
+.nav-parent[aria-expanded="true"] .chev{ transform:rotate(180deg); }
+.subnav{ display:none; padding:8px 0 12px 12px; background:#eef8ff; }
+.subnav.open{ display:block; }
+.subitem{
+  width:100%; text-align:left; padding:10px 24px; border:0; background:transparent; cursor:pointer;
+  color:#345; border-left:4px solid transparent;
+}
+.subitem:hover{ background:#e5f3ff; }
+.subitem.active{ background:#d8edff; border-left-color:#3aa2ff; color:#123; font-weight:700; }
