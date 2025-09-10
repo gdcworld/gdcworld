@@ -587,10 +587,10 @@ function dayCard(dayLabel, items, ymd, canEdit, totalC, totalA){
         <div style="display:flex; align-items:center; gap:8px;">
           <div style="font-weight:800;">total ${totalC}/${totalA}</div>
           <button class="btn" type="submit" style="height:36px; padding:6px 14px;">저장</button>
-          <button class="btn" type="button"
-                  onclick="this.closest('form').requestSubmit()"
-                  style="height:36px; padding:6px 14px;">수정</button>
-        </div>
+           <!-- 수정 = 초기화(덮어쓰기) -->
+  <button class="btn" type="submit" data-mode="set"
+          style="height:36px; padding:6px 14px;">수정</button>
+</div>
       </form>
       ` : ``}
     </div>
@@ -716,6 +716,9 @@ document.addEventListener('submit', async (e)=>{
   const arthro = Math.max(0, parseInt(form.arthro?.value || '0', 10));
   const createdBy = (getRole() === 'admin') ? (form.who?.value || null) : null;
 
+  // 클릭한 버튼이 가진 data-mode 사용: 기본값은 'add'
+  const mode = (e.submitter && e.submitter.dataset && e.submitter.dataset.mode) || 'add';
+
   try {
     await carmApi('/carm', {
       method: 'POST',
@@ -726,6 +729,7 @@ document.addEventListener('submit', async (e)=>{
           { type: 'carm',   qty: carm },
           { type: 'arthro', qty: arthro }
         ],
+        mode,                                // ← 핵심!
         ...(createdBy ? { createdBy } : {})
       })
     });
@@ -735,7 +739,7 @@ document.addEventListener('submit', async (e)=>{
       await renderCarmBoard(mEl.value);
     }
   } catch (ex) {
-    alert('저장 실패: ' + (ex?.message || ex));
+    alert((mode === 'set' ? '수정 실패: ' : '저장 실패: ') + (ex?.message || ex));
   }
 }, true);
 </script>

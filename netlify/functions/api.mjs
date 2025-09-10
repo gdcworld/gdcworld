@@ -328,24 +328,25 @@ if (path === '/carm/users' && method === 'GET') {
   const body = safeJson(event.body) || {};
   const workDate = body.workDate;
   const items    = Array.isArray(body.items) ? body.items : [];
+  const mode     = (body.mode || 'add').toLowerCase(); // 'add' | 'set'
 
   if (!workDate || !/^\d{4}-\d{2}-\d{2}$/.test(workDate)) {
     return send(400, { ok:false, message:'workDate (YYYY-MM-DD) required' });
   }
 
-  // 관리자면 createdBy 사용, 아니면 본인
+  // 관리자면 지정 사용자, 아니면 본인
   const targetId = (auth.role === 'admin' && body.createdBy)
     ? String(body.createdBy)
     : meId;
 
-  // 관심 타입만 필터링
+  // 관심 타입만
   const wanted = items
     .filter(it => it && (it.type === 'carm' || it.type === 'arthro'))
     .map(it => ({ type: it.type, qty: Math.max(0, parseInt(it.qty ?? 0, 10)) }));
 
   if (!wanted.length) return send(400, { ok:false, message:'items empty' });
 
-  // 1) 기존 값 읽기
+  // ── 기존 값 조회 (누적 모드에서만 필요하지만, 비용 작아서 공통으로 둬도 OK)
   const { data: existing, error: selErr } = await supabase
     .from('carm_daily')
     .select('proc_type, qty')
@@ -357,12 +358,12 @@ if (path === '/carm/users' && method === 'GET') {
 
   const prevMap = Object.fromEntries((existing || []).map(r => [r.proc_type, Number(r.qty || 0)]));
 
-  // 2) 누적(기존 + 신규) 값으로 upsert
+  // ── 모드별 계산: set = 덮어쓰기, add = 누적
   const rows = wanted.map(w => ({
     work_date:  workDate,
     proc_type:  w.type,
     created_by: targetId,
-    qty:        (prevMap[w.type] || 0) + w.qty
+    qty: mode === 'set' ? w.qty : (prevMap[w.type] || 0) + w.qty
   }));
 
   const { data, error } = await supabase
