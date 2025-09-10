@@ -603,10 +603,10 @@ function dayCard(dayLabel, items, ymd, canEdit){
   `;
 }
 
- async function renderCarmBoard(monthStr){
+ window.renderCarmBoard = async function(monthStr){
   const grid = document.getElementById('carmBoard');
   if (!grid) return;
-  grid.innerHTML = `<div class="panel" style="grid-column:1/-1;padding:12px;">불러오는 중…</div>`;
+  grid.innerHTML = `<div class="panel" style="grid-column:1/-1;padding:12px;">불러오는 중...</div>`;
 
   // 안전하게 호출 (권한 에러 등 표시)
   let j;
