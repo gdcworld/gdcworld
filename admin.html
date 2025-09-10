@@ -729,7 +729,7 @@ document.addEventListener('submit', async (e)=>{
         ],
         ...(createdBy ? { createdBy } : {})  // ← 관리자일 때만 전송
       })
-    });
+   }, true);
 
     // 저장 후 현재 월 보드 새로고침
     const mEl = document.getElementById('carmMonth');
