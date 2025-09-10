@@ -299,140 +299,150 @@ if (path === '/carm/users' && method === 'GET') {
   // GET  /api/carm?from=YYYY-MM-DD&to=YYYY-MM-DD
   // POST /api/carm { workDate, items:[{type:'carm'|'arthro', qty}], createdBy? }
   if (path === '/carm') {
-    const check = requireRole(auth, ['radiology','admin']);
-    if (!check.ok) return send(check.status, { ok:false, message:check.message });
+  const check = requireRole(auth, ['radiology','admin']);
+  if (!check.ok) return send(check.status, { ok:false, message:check.message });
 
-    const meId = auth?.sub;
-    if (!meId) return send(401, { ok:false, message:'unauthorized' });
+  const meId = auth?.sub;
+  if (!meId) return send(401, { ok:false, message:'unauthorized' });
 
-    if (method === 'GET') {
-      const url  = new URL(event.rawUrl);
-      const from = url.searchParams.get('from');
-      const to   = url.searchParams.get('to');
+  if (method === 'GET') {
+    const url  = new URL(event.rawUrl);
+    const from = url.searchParams.get('from');
+    const to   = url.searchParams.get('to');
 
-      let q = supabase.from('carm_daily')
-        .select('id, work_date, proc_type, qty, created_at, updated_at, created_by')
-        .order('work_date', { ascending:false })
-        .order('proc_type', { ascending:true })
-        .gte('work_date', from || '1900-01-01')
-        .lte('work_date', to   || '2999-12-31');
+    let q = supabase.from('carm_daily')
+      .select('id, work_date, proc_type, qty, created_at, updated_at, created_by')
+      .order('work_date', { ascending:false })
+      .order('proc_type', { ascending:true })
+      .gte('work_date', from || '1900-01-01')
+      .lte('work_date', to   || '2999-12-31');
 
-      if (auth.role !== 'admin') q = q.eq('created_by', meId);
+    if (auth.role !== 'admin') q = q.eq('created_by', meId);
 
-      const { data, error } = await q;
-      if (error) return send(400, { ok:false, message:error.message });
-      return send(200, { ok:true, items: data });
-    }
-
-    if (method === 'POST') {
-      const body = safeJson(event.body) || {};
-      const workDate = body.workDate;
-      const items    = Array.isArray(body.items) ? body.items : [];
-      if (!workDate || !/^\d{4}-\d{2}-\d{2}$/.test(workDate)) {
-        return send(400, { ok:false, message:'workDate (YYYY-MM-DD) required' });
-      }
-
-      // 관리자라면 createdBy 허용, 아니면 본인
-      const targetId = (auth.role === 'admin' && body.createdBy)
-        ? String(body.createdBy)
-        : meId;
-
-      const rows = items
-        .filter(it => it && (it.type === 'carm' || it.type === 'arthro'))
-        .map(it => ({
-          work_date: workDate,
-          proc_type: it.type,
-          qty: Math.max(0, parseInt(it.qty ?? 0, 10)),
-          created_by: targetId
-        }));
-
-      if (!rows.length) return send(400, { ok:false, message:'items empty' });
-
-      const { data, error } = await supabase
-        .from('carm_daily')
-        .upsert(rows, { onConflict: 'work_date,proc_type,created_by' })
-        .select('id, work_date, proc_type, qty, created_at, updated_at, created_by');
-
-      if (error) return send(400, { ok:false, message:error.message });
-      return send(200, { ok:true, items: data });
-    }
-
-    return send(405, { ok:false, message:'Method Not Allowed' });
+    const { data, error } = await q;
+    if (error) return send(400, { ok:false, message:error.message });
+    return send(200, { ok:true, items: data });
   }
+
+  if (method === 'POST') {
+    const body = safeJson(event.body) || {};
+    const workDate = body.workDate;
+    const items    = Array.isArray(body.items) ? body.items : [];
+
+    // 입력 검증
+    if (!workDate || !/^\d{4}-\d{2}-\d{2}$/.test(workDate)) {
+      return send(400, { ok:false, message:'workDate (YYYY-MM-DD) required' });
+    }
+
+    // 관리자면 createdBy(선택 사용자), 아니면 본인 ID로 저장
+    const targetId = (auth.role === 'admin' && body.createdBy)
+      ? String(body.createdBy)
+      : meId;
+
+    // (work_date, created_by, proc_type) 기준 UPSERT → 사람별로 1행
+    const rows = items
+      .filter(it => it && (it.type === 'carm' || it.type === 'arthro'))
+      .map(it => ({
+        work_date: workDate,
+        proc_type: it.type,
+        qty: Math.max(0, parseInt(it.qty ?? 0, 10)),
+        created_by: targetId
+      }));
+
+    if (!rows.length) return send(400, { ok:false, message:'items empty' });
+
+    const { data, error } = await supabase
+      .from('carm_daily')
+      .upsert(rows, { onConflict: 'work_date,proc_type,created_by' })
+      .select('id, work_date, proc_type, qty, created_at, updated_at, created_by');
+
+    if (error) return send(400, { ok:false, message:error.message });
+    return send(200, { ok:true, items: data });
+  }
+
+  return send(405, { ok:false, message:'Method Not Allowed' });
+}
 
   // ───────── C-arm 월간 요약 ─────────
   // GET /api/carm/summary?month=YYYY-MM
   if (path === '/carm/summary' && method === 'GET') {
-    const check = requireRole(auth, ['radiology','admin']);
-    if (!check.ok) return send(check.status, { ok:false, message:check.message });
+  const check = requireRole(auth, ['radiology','admin']);
+  if (!check.ok) return send(check.status, { ok:false, message:check.message });
 
-    const url   = new URL(event.rawUrl);
-    const month = url.searchParams.get('month');
-    if (!month || !/^\d{4}-\d{2}$/.test(month)) {
-      return send(400, { ok:false, message:'month (YYYY-MM) required' });
-    }
-
-    const from = `${month}-01`;
-    const [yy, mm] = month.split('-').map(Number);
-    const nextMonth = (mm === 12)
-      ? `${yy + 1}-01-01`
-      : `${yy}-${String(mm + 1).padStart(2, '0')}-01`;
-
-   let q = supabase.from('carm_daily')
-  .select('work_date, proc_type, qty, created_by')
-  .gte('work_date', from).lt('work_date', nextMonth)
-  .order('work_date', { ascending: true });
-
-if (auth.role === 'radiology') {
-  const { data: admins } = await supabase.from('accounts')
-    .select('id').eq('role', 'admin');
-  const { data: radios } = await supabase.from('accounts')
-    .select('id').eq('role', 'radiology');
-  const adminIds = (admins || []).map(a => a.id);
-  const radioIds = (radios  || []).map(a => a.id);
-  q = q.in('created_by', [...adminIds, ...radioIds]);
-} else if (auth.role !== 'admin') {
-  q = q.eq('created_by', auth.sub);
-}
-
-const { data, error } = await q;
-if (error) return send(400, { ok: false, message: error.message });
-
-    // id → 이름 매핑
-    const ids = Array.from(new Set((data || []).map(r => r.created_by))).filter(Boolean);
-    let id2name = {};
-    if (ids.length) {
-      const { data:accs, error:err2 } = await supabase
-        .from('accounts').select('id,name').in('id', ids);
-      if (err2) return send(400, { ok:false, message:err2.message });
-      id2name = Object.fromEntries((accs || []).map(a => [a.id, a.name || '무명']));
-    }
-
-    // 집계
-    const days = {}; const users = {}; const totals = {};
-    for (const r of (data || [])) {
-      const day = Number(String(r.work_date).slice(-2));
-      const uname = id2name[r.created_by] || '무명';
-      users[uname] = true;
-      (days[day] ??= {}); (days[day][uname] ??= { carm:0, arthro:0 });
-      days[day][uname][r.proc_type] += Number(r.qty || 0);
-      (totals[uname] ??= { carm:0, arthro:0 })[r.proc_type] += Number(r.qty || 0);
-    }
-
-    const userList = Object.keys(users).sort((a,b)=>a.localeCompare(b,'ko'));
-    const rows = [];
-    for (let d = 1; d <= 31; d++) {
-      const row = { day: d };
-      for (const u of userList) {
-        const v = (days[d]?.[u]) || { carm:0, arthro:0 };
-        row[`${u}__carm`]   = v.carm;
-        row[`${u}__arthro`] = v.arthro;
-      }
-      rows.push(row);
-    }
-
-    return send(200, { ok:true, users: userList, rows, totals });
+  const url   = new URL(event.rawUrl);
+  const month = url.searchParams.get('month');
+  if (!month || !/^\d{4}-\d{2}$/.test(month)) {
+    return send(400, { ok:false, message:'month (YYYY-MM) required' });
   }
+
+  const from = `${month}-01`;
+  const [yy, mm] = month.split('-').map(Number);
+  const nextMonth = (mm === 12)
+    ? `${yy + 1}-01-01`
+    : `${yy}-${String(mm + 1).padStart(2, '0')}-01`;
+
+  let q = supabase.from('carm_daily')
+    .select('work_date, proc_type, qty, created_by')
+    .gte('work_date', from).lt('work_date', nextMonth)
+    .order('work_date', { ascending: true });
+
+  // radiology는 admin+radiology 두 역할만 합쳐서 보이게, 그 외는 본인만
+  if (auth.role === 'radiology') {
+    const { data: admins } = await supabase.from('accounts').select('id').eq('role', 'admin');
+    const { data: radios } = await supabase.from('accounts').select('id').eq('role', 'radiology');
+    const adminIds = (admins || []).map(a => a.id);
+    const radioIds = (radios  || []).map(a => a.id);
+    q = q.in('created_by', [...adminIds, ...radioIds]);
+  } else if (auth.role !== 'admin') {
+    q = q.eq('created_by', auth.sub);
+  }
+
+  const { data, error } = await q;
+  if (error) return send(400, { ok: false, message: error.message });
+
+  // id → 이름 매핑
+  const ids = Array.from(new Set((data || []).map(r => r.created_by))).filter(Boolean);
+  let id2name = {};
+  if (ids.length) {
+    const { data:accs, error:err2 } = await supabase
+      .from('accounts').select('id,name').in('id', ids);
+    if (err2) return send(400, { ok:false, message:err2.message });
+    id2name = Object.fromEntries((accs || []).map(a => [a.id, a.name || '무명']));
+  }
+
+  // 집계
+  const days   = {}; // 일자 x 사용자
+  const users  = {};
+  const totals = {}; // 사용자별 합계
+  const daysSum = {}; // ✅ 일자별 총합 (C/A)
+
+  for (const r of (data || [])) {
+    const day = Number(String(r.work_date).slice(-2));
+    const uname = id2name[r.created_by] || '무명';
+    users[uname] = true;
+
+    (days[day] ??= {}); (days[day][uname] ??= { carm:0, arthro:0 });
+    days[day][uname][r.proc_type] += Number(r.qty || 0);
+
+    (totals[uname] ??= { carm:0, arthro:0 })[r.proc_type] += Number(r.qty || 0);
+    (daysSum[day] ??= { carm:0, arthro:0 })[r.proc_type] += Number(r.qty || 0); // ✅ 추가
+  }
+
+  const userList = Object.keys(users).sort((a,b)=>a.localeCompare(b,'ko'));
+  const rows = [];
+  for (let d = 1; d <= 31; d++) {
+    const row = { day: d };
+    for (const u of userList) {
+      const v = (days[d]?.[u]) || { carm:0, arthro:0 };
+      row[`${u}__carm`]   = v.carm;
+      row[`${u}__arthro`] = v.arthro;
+    }
+    rows.push(row);
+  }
+
+  // ✅ daysSum 추가: 프론트에서 날짜 total을 바로 표시 가능
+  return send(200, { ok:true, users: userList, rows, totals, daysSum });
+}
 
   // 라우트 없음
   return send(404, { ok:false, error:'route_not_found', route:path, path:rawPath });
