@@ -553,12 +553,9 @@ async function loadCarmUsers(){
 
 
 // ✅ (기존 dayCard는 삭제하고, 이 버전만 남기기)
-function dayCard(dayLabel, items, ymd, canEdit){
-  const totalC = items.reduce((s,x)=> s + (x.carm||0), 0);
-  const totalA = items.reduce((s,x)=> s + (x.arthro||0), 0);
+function dayCard(dayLabel, items, ymd, canEdit, totalC, totalA){
   const role = (window.Auth && Auth.currentRole && Auth.currentRole()) || null;
 
-  /* ① 이름 셀렉트: 너무 넓어지지 않게 최대폭 ↓ (280 → 140), 줄바꿈 방지 */
   const adminSelectHTML = (role === 'admin' || role === 'radiology')
     ? `<select name="who" class="rad-select"
        style="height:36px;padding:6px 10px;border-radius:8px;border:1px solid #444;
@@ -575,7 +572,6 @@ function dayCard(dayLabel, items, ymd, canEdit){
       ${canEdit ? `
       <form class="carm-inline" data-date="${ymd}" onkeydown="return handleCarmHotkeys(event)"
        style="margin-top:6px; display:grid; gap:8px;">
-        <!-- ② 1행: 줄바꿈 금지(flex-wrap:nowrap)로 '관절경'이 C-arm 옆에 붙도록 -->
         <div style="display:flex; align-items:center; gap:6px; flex-wrap:nowrap;">
           ${adminSelectHTML}
           <input name="carm"   type="number" min="0" placeholder="C-arm"
@@ -588,15 +584,13 @@ function dayCard(dayLabel, items, ymd, canEdit){
                         background:#1f2025;color:#fff;">
         </div>
 
-        <!-- 2행: total + 저장 + 수정 (버튼 크기 동일) -->
-<div style="display:flex; align-items:center; gap:8px;">
-  <div style="font-weight:800;">total ${totalC}/${totalA}</div>
-  <button class="btn" type="submit" style="height:36px; padding:6px 14px;">저장</button>
-  <button class="btn" type="button"
-          onclick="this.closest('form').requestSubmit()"
-          style="height:36px; padding:6px 14px;">수정</button>
-</div>
-
+        <div style="display:flex; align-items:center; gap:8px;">
+          <div style="font-weight:800;">total ${totalC}/${totalA}</div>
+          <button class="btn" type="submit" style="height:36px; padding:6px 14px;">저장</button>
+          <button class="btn" type="button"
+                  onclick="this.closest('form').requestSubmit()"
+                  style="height:36px; padding:6px 14px;">수정</button>
+        </div>
       </form>
       ` : ``}
     </div>
@@ -624,16 +618,21 @@ function dayCard(dayLabel, items, ymd, canEdit){
 const canEdit = ['admin', 'radiology'].includes(role);
 
   grid.innerHTML = rows.map(row=>{
-    const items = users.map(u => ({
-      name: u,
-      carm:   Number(row[`${u}__carm`]   || 0),
-      arthro: Number(row[`${u}__arthro`]|| 0),
-    }));
-    const mm  = Number(monthStr.slice(5,7));
-    const dd  = String(row.day).padStart(2,'0');
-    const ymd = `${monthStr}-${dd}`;
-    const dayLabel = `${mm}월 ${row.day}일`;
-    return dayCard(dayLabel, items, ymd, canEdit);
+  const items = users.map(u => ({
+    name: u,
+    carm:   Number(row[`${u}__carm`]   || 0),
+    arthro: Number(row[`${u}__arthro`]|| 0),
+  }));
+
+  const mm  = Number(monthStr.slice(5,7));
+  const dd  = String(row.day).padStart(2,'0');
+  const ymd = `${monthStr}-${dd}`;
+  const dayLabel = `${mm}월 ${row.day}일`;
+
+  // ✅ 요약 응답의 날짜별 합계 사용 (없으면 0/0)
+  const sum = (j.daysSum && j.daysSum[row.day]) || { carm:0, arthro:0 };
+
+  return dayCard(dayLabel, items, ymd, canEdit, sum.carm, sum.arthro);
 }).join('');
 
 
