@@ -533,8 +533,8 @@ window.handleCarmHotkeys = function (e) {
   const fmtMonth = (d)=> d.toISOString().slice(0,7);
 
 // ✅ (스크립트 상단, 함수 바깥)
-const getRole  = () => ((window.Auth?.currentRole && Auth.currentRole()) || 'member').toLowerCase();
-const getEmail = () => (window.Auth?.currentUserEmail && Auth.currentUserEmail()) || '';
+window.getRole  = () => ((window.Auth?.currentRole && Auth.currentRole()) || 'member').toLowerCase();
+window.getEmail = () => (window.Auth?.currentUserEmail && Auth.currentUserEmail()) || '';
 
 let __carmUsers = null;
 async function loadCarmUsers(){
