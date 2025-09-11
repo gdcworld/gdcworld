@@ -57,24 +57,23 @@
     init() {
       // 네비 버튼 클릭 -> 패널 전환
       qsa('.nav button').forEach(btn => {
-        btn.addEventListener('click', () => {
-          const v = btn.dataset.view;
-          activate(v);
+  btn.addEventListener('click', () => {
+    const v = btn.dataset.view;
+    activate(v);
 
-          // 파트너 병원 패널이면 데이터 렌더
-          if (v === 'partners') renderPartners();
+    if (v === 'partners') renderPartners();
+    if (v === 'expenses') renderExpenses();   // ← 추가!
 
-          // 계정관리 패널이면 accounts.js의 부트 함수만 호출 (정의는 accounts.js가 소유)
-          const panel = qs(`[data-panel="${v}"]`);
-          if (panel && panel.querySelector('.account-module')) {
-            if (window.__bootAccountsModules) {
-              window.__bootAccountsModules(panel);
-            } else {
-              console.warn('__bootAccountsModules가 로드되지 않았습니다.');
-            }
-          }
-        });
-      });
+    const panel = qs(`[data-panel="${v}"]`);
+    if (panel && panel.querySelector('.account-module')) {
+      if (window.__bootAccountsModules) {
+        window.__bootAccountsModules(panel);
+      } else {
+        console.warn('__bootAccountsModules가 로드되지 않았습니다.');
+      }
+    }
+  });
+});
 
       // 초기 화면: 파트너
       activate('partners');
@@ -82,3 +81,175 @@
     }
   };
 })();
+
+// ─────────────────────────────────────────────────────────────
+// 지출(병원카드) 월간 보드 렌더러
+async function renderExpenses() {
+  const monthInput = document.getElementById('expMonth');
+  const prevBtn    = document.getElementById('expPrev');
+  const nextBtn    = document.getElementById('expNext');
+  const reloadBtn  = document.getElementById('expReload');
+  const totalEl    = document.getElementById('expTotal');
+  const form       = document.getElementById('expForm');
+  const table      = document.getElementById('expTable');
+  const tbody      = table ? table.querySelector('tbody') : null;
+
+  if (!monthInput || !tbody) return; // 패널이 아직 DOM에 없으면 스킵
+
+  // 최초 진입 시 기본 월 = 오늘
+  if (!monthInput.value) {
+    const d = new Date();
+    monthInput.value = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+  }
+
+  // 리스트 불러오기
+  const load = async () => {
+    const m = monthInput.value;
+    if (!m) return;
+    tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; padding:18px;">불러오는 중…</td></tr>`;
+    try {
+      const r = await fetch(`/api/expenses?month=${encodeURIComponent(m)}&method=hospital_card`, {
+        headers: {
+          'Content-Type':'application/json',
+          ...(window.Auth?.currentToken?.() ? { Authorization: `Bearer ${Auth.currentToken()}` } : {})
+        }
+      });
+      const j = await r.json();
+      if (!r.ok || j.ok === false) throw new Error(j.message || 'load failed');
+
+      const rows = (j.items || []).map(it => `
+        <tr data-id="${it.id}">
+          <td>${it.pay_date}</td>
+          <td style="text-align:right;">${Number(it.amount||0).toLocaleString()}</td>
+          <td>${escapeHtml(it.merchant||'')}</td>
+          <td>${escapeHtml(it.purpose||'')}</td>
+          <td>
+            <button class="btn ghost exp-edit" type="button" data-id="${it.id}">수정</button>
+            <button class="btn ghost exp-del"  type="button" data-id="${it.id}">삭제</button>
+          </td>
+        </tr>
+      `).join('');
+
+      tbody.innerHTML = rows || `<tr><td colspan="5" style="text-align:center; padding:18px;">내역 없음</td></tr>`;
+      totalEl.textContent = Number(j.total||0).toLocaleString();
+    } catch (err) {
+      tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; color:#f99; padding:18px;">불러오기 실패</td></tr>`;
+      console.warn('expenses load error:', err);
+    }
+  };
+
+  // 월 이동 버튼
+  prevBtn?.addEventListener('click', ()=>{
+    const d = new Date(monthInput.value+'-01');
+    d.setMonth(d.getMonth()-1);
+    monthInput.value = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+    load();
+  });
+  nextBtn?.addEventListener('click', ()=>{
+    const d = new Date(monthInput.value+'-01');
+    d.setMonth(d.getMonth()+1);
+    monthInput.value = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+    load();
+  });
+  reloadBtn?.addEventListener('click', load);
+  monthInput.addEventListener('change', load);
+
+  // 추가(POST)
+  form?.addEventListener('submit', async (e)=>{
+    e.preventDefault();
+    const fd = new FormData(form);
+    const payload = {
+      payDate:  fd.get('payDate'),
+      amount:   Number(fd.get('amount')||0),
+      merchant: String(fd.get('merchant')||'').trim(),
+      purpose:  String(fd.get('purpose')||'').trim(),
+      method:   'hospital_card'
+    };
+    if (!payload.payDate || !payload.amount || !payload.merchant || !payload.purpose) return;
+
+    try {
+      const r = await fetch('/api/expenses', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(window.Auth?.currentToken?.() ? { Authorization: `Bearer ${Auth.currentToken()}` } : {})
+        },
+        body: JSON.stringify(payload)
+      });
+      const j = await r.json();
+      if (!r.ok || j.ok === false) throw new Error(j.message || 'post failed');
+      form.reset();
+      load();
+    } catch (err) {
+      alert('등록 실패: ' + (err?.message || err));
+    }
+  });
+
+  // 수정/삭제 (이벤트 위임)
+  table?.addEventListener('click', async (e)=>{
+    const btn = e.target.closest('button'); if (!btn) return;
+    const id = btn.dataset.id; if (!id) return;
+
+    if (btn.classList.contains('exp-del')) {
+      if (!confirm('삭제할까요?')) return;
+      try {
+        const r = await fetch('/api/expenses', {
+          method: 'DELETE',
+          headers: {
+            'Content-Type':'application/json',
+            ...(window.Auth?.currentToken?.() ? { Authorization: `Bearer ${Auth.currentToken()}` } : {})
+          },
+          body: JSON.stringify({ id })
+        });
+        const j = await r.json();
+        if (!r.ok || j.ok === false) throw new Error(j.message || 'delete failed');
+        load();
+      } catch (err) {
+        alert('삭제 실패: ' + (err?.message || err));
+      }
+      return;
+    }
+
+    if (btn.classList.contains('exp-edit')) {
+      const tr = btn.closest('tr');
+      const cur = {
+        date:     tr.children[0].textContent.trim(),
+        amount:   tr.children[1].textContent.replace(/[^0-9]/g,''),
+        merchant: tr.children[2].textContent.trim(),
+        purpose:  tr.children[3].textContent.trim()
+      };
+      const newAmount   = prompt('금액(원):', cur.amount);   if (newAmount===null) return;
+      const newMerchant = prompt('상호명:',   cur.merchant); if (newMerchant===null) return;
+      const newPurpose  = prompt('용도:',     cur.purpose);  if (newPurpose===null) return;
+
+      try {
+        const r = await fetch('/api/expenses', {
+          method: 'PATCH',
+          headers: {
+            'Content-Type':'application/json',
+            ...(window.Auth?.currentToken?.() ? { Authorization: `Bearer ${Auth.currentToken()}` } : {})
+          },
+          body: JSON.stringify({
+            id,
+            amount:   Number(newAmount||0),
+            merchant: newMerchant,
+            purpose:  newPurpose
+          })
+        });
+        const j = await r.json();
+        if (!r.ok || j.ok === false) throw new Error(j.message || 'patch failed');
+        load();
+      } catch (err) {
+        alert('수정 실패: ' + (err?.message || err));
+      }
+    }
+  });
+
+  // 유틸: 간단한 이스케이프
+  function escapeHtml(s=''){
+    return String(s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]));
+  }
+
+  // 최초 1회 로드
+  load();
+}
