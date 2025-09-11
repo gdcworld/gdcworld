@@ -660,6 +660,7 @@ const monthTotalHTML = `
 `;
 
  const roleNow = getRole();
+grid.innerHTML = daysHTML + monthTotalHTML;
 
 try {
   const r = await fetch('/api/carm/users', {
