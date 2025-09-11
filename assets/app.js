@@ -82,8 +82,8 @@
   };
 })();
 
-// ─────────────────────────────────────────────────────────────
-// 지출(병원카드) 월간 보드 렌더러
+
+// 지출(병원카드) 월간 보드 렌더러  [교체본]
 async function renderExpenses() {
   const monthInput = document.getElementById('expMonth');
   const prevBtn    = document.getElementById('expPrev');
@@ -94,7 +94,7 @@ async function renderExpenses() {
   const table      = document.getElementById('expTable');
   const tbody      = table ? table.querySelector('tbody') : null;
 
-  if (!monthInput || !tbody) return; // 패널이 아직 없으면 스킵
+  if (!monthInput || !tbody) return; // 패널이 아직 DOM에 없으면 스킵
 
   // 최초 진입 시 기본 월 = 오늘
   if (!monthInput.value) {
@@ -102,7 +102,11 @@ async function renderExpenses() {
     monthInput.value = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
   }
 
-  // 리스트 불러오기
+  // 유틸: 간단한 이스케이프
+  const escapeHtml = (s='') =>
+    String(s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]));
+
+  // 리스트 불러오기 (필요할 때마다 재사용)
   const load = async () => {
     const m = monthInput.value;
     if (!m) return;
@@ -138,118 +142,128 @@ async function renderExpenses() {
     }
   };
 
-  // 월 이동/새로고침
-  prevBtn?.addEventListener('click', ()=>{
-    const d = new Date(monthInput.value+'-01');
-    d.setMonth(d.getMonth()-1);
-    monthInput.value = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
-    load();
-  });
-  nextBtn?.addEventListener('click', ()=>{
-    const d = new Date(monthInput.value+'-01');
-    d.setMonth(d.getMonth()+1);
-    monthInput.value = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
-    load();
-  });
-  reloadBtn?.addEventListener('click', load);
-  monthInput.addEventListener('change', load);
-
-  // 추가(POST) — ★ 기본 제출 방지 + API 호출
-  form?.addEventListener('submit', async (e)=>{
-    e.preventDefault();
-    const fd = new FormData(form);
-    const payload = {
-      payDate:  fd.get('payDate'),
-      amount:   Number(fd.get('amount')||0),
-      merchant: String(fd.get('merchant')||'').trim(),
-      purpose:  String(fd.get('purpose')||'').trim(),
-      method:   'hospital_card'
-    };
-    if (!payload.payDate || !payload.amount || !payload.merchant || !payload.purpose) return;
-
-    try {
-      const r = await fetch('/api/expenses', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(window.Auth?.currentToken?.() ? { Authorization: `Bearer ${Auth.currentToken()}` } : {})
-        },
-        body: JSON.stringify(payload)
-      });
-      const j = await r.json();
-      if (!r.ok || j.ok === false) throw new Error(j.message || 'post failed');
-      form.reset();
+  // ── 이벤트 리스너는 "한 번만" 바인딩되도록 가드 처리 ──
+  if (!monthInput.dataset.bound) {
+    monthInput.dataset.bound = '1';
+    monthInput.addEventListener('change', load);
+  }
+  if (prevBtn && !prevBtn.dataset.bound) {
+    prevBtn.dataset.bound = '1';
+    prevBtn.addEventListener('click', ()=>{
+      const d = new Date(monthInput.value+'-01');
+      d.setMonth(d.getMonth()-1);
+      monthInput.value = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
       load();
-    } catch (err) {
-      alert('등록 실패: ' + (err?.message || err));
-    }
-  });
-
-  // 수정/삭제 (이벤트 위임)
-  table?.addEventListener('click', async (e)=>{
-    const btn = e.target.closest('button'); if (!btn) return;
-    const id = btn.dataset.id; if (!id) return;
-
-    if (btn.classList.contains('exp-del')) {
-      if (!confirm('삭제할까요?')) return;
-      try {
-        const r = await fetch('/api/expenses', {
-          method: 'DELETE',
-          headers: {
-            'Content-Type':'application/json',
-            ...(window.Auth?.currentToken?.() ? { Authorization: `Bearer ${Auth.currentToken()}` } : {})
-          },
-          body: JSON.stringify({ id })
-        });
-        const j = await r.json();
-        if (!r.ok || j.ok === false) throw new Error(j.message || 'delete failed');
-        load();
-      } catch (err) {
-        alert('삭제 실패: ' + (err?.message || err));
-      }
-      return;
-    }
-
-    if (btn.classList.contains('exp-edit')) {
-      const tr = btn.closest('tr');
-      const cur = {
-        date:     tr.children[0].textContent.trim(),
-        amount:   tr.children[1].textContent.replace(/[^0-9]/g,''),
-        merchant: tr.children[2].textContent.trim(),
-        purpose:  tr.children[3].textContent.trim()
-      };
-      const newAmount   = prompt('금액(원):', cur.amount);   if (newAmount===null) return;
-      const newMerchant = prompt('상호명:',   cur.merchant); if (newMerchant===null) return;
-      const newPurpose  = prompt('용도:',     cur.purpose);  if (newPurpose===null) return;
-
-      try {
-        const r = await fetch('/api/expenses', {
-          method: 'PATCH',
-          headers: {
-            'Content-Type':'application/json',
-            ...(window.Auth?.currentToken?.() ? { Authorization: `Bearer ${Auth.currentToken()}` } : {})
-          },
-          body: JSON.stringify({
-            id,
-            amount:   Number(newAmount||0),
-            merchant: newMerchant,
-            purpose:  newPurpose
-          })
-        });
-        const j = await r.json();
-        if (!r.ok || j.ok === false) throw new Error(j.message || 'patch failed');
-        load();
-      } catch (err) {
-        alert('수정 실패: ' + (err?.message || err));
-      }
-    }
-  });
-
-  // 유틸: 간단한 이스케이프
-  function escapeHtml(s=''){
-    return String(s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]));
+    });
+  }
+  if (nextBtn && !nextBtn.dataset.bound) {
+    nextBtn.dataset.bound = '1';
+    nextBtn.addEventListener('click', ()=>{
+      const d = new Date(monthInput.value+'-01');
+      d.setMonth(d.getMonth()+1);
+      monthInput.value = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+      load();
+    });
+  }
+  if (reloadBtn && !reloadBtn.dataset.bound) {
+    reloadBtn.dataset.bound = '1';
+    reloadBtn.addEventListener('click', load);
   }
 
-  // 최초 1회 로드
+  if (form && !form.dataset.bound) {
+    form.dataset.bound = '1';
+    form.addEventListener('submit', async (e)=>{
+      e.preventDefault(); // ★ 기본 제출 방지 (쿼리 붙는 문제 차단)
+      const fd = new FormData(form);
+      const payload = {
+        payDate:  fd.get('payDate'),
+        amount:   Number(fd.get('amount')||0),
+        merchant: String(fd.get('merchant')||'').trim(),
+        purpose:  String(fd.get('purpose')||'').trim(),
+        method:   'hospital_card'
+      };
+      if (!payload.payDate || !payload.amount || !payload.merchant || !payload.purpose) return;
+
+      try {
+        const r = await fetch('/api/expenses', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(window.Auth?.currentToken?.() ? { Authorization: `Bearer ${Auth.currentToken()}` } : {})
+          },
+          body: JSON.stringify(payload)
+        });
+        const j = await r.json();
+        if (!r.ok || j.ok === false) throw new Error(j.message || 'post failed');
+        form.reset();
+        load();
+      } catch (err) {
+        alert('등록 실패: ' + (err?.message || err));
+      }
+    });
+  }
+
+  if (table && !table.dataset.bound) {
+    table.dataset.bound = '1';
+    table.addEventListener('click', async (e)=>{
+      const btn = e.target.closest('button'); if (!btn) return;
+      const id = btn.dataset.id; if (!id) return;
+
+      if (btn.classList.contains('exp-del')) {
+        if (!confirm('삭제할까요?')) return;
+        try {
+          const r = await fetch('/api/expenses', {
+            method: 'DELETE',
+            headers: {
+              'Content-Type':'application/json',
+              ...(window.Auth?.currentToken?.() ? { Authorization: `Bearer ${Auth.currentToken()}` } : {})
+            },
+            body: JSON.stringify({ id })
+          });
+          const j = await r.json();
+          if (!r.ok || j.ok === false) throw new Error(j.message || 'delete failed');
+          load();
+        } catch (err) {
+          alert('삭제 실패: ' + (err?.message || err));
+        }
+        return;
+      }
+
+      if (btn.classList.contains('exp-edit')) {
+        const tr = btn.closest('tr');
+        const cur = {
+          amount:   tr.children[1].textContent.replace(/[^0-9]/g,''),
+          merchant: tr.children[2].textContent.trim(),
+          purpose:  tr.children[3].textContent.trim()
+        };
+        const newAmount   = prompt('금액(원):', cur.amount);   if (newAmount===null) return;
+        const newMerchant = prompt('상호명:',   cur.merchant); if (newMerchant===null) return;
+        const newPurpose  = prompt('용도:',     cur.purpose);  if (newPurpose===null) return;
+
+        try {
+          const r = await fetch('/api/expenses', {
+            method: 'PATCH',
+            headers: {
+              'Content-Type':'application/json',
+              ...(window.Auth?.currentToken?.() ? { Authorization: `Bearer ${Auth.currentToken()}` } : {})
+            },
+            body: JSON.stringify({
+              id,
+              amount:   Number(newAmount||0),
+              merchant: newMerchant,
+              purpose:  newPurpose
+            })
+          });
+          const j = await r.json();
+          if (!r.ok || j.ok === false) throw new Error(j.message || 'patch failed');
+          load();
+        } catch (err) {
+          alert('수정 실패: ' + (err?.message || err));
+        }
+      }
+    });
+  }
+
+  // 패널 열릴 때마다 최신 데이터 로드
   load();
 }
