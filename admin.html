@@ -423,6 +423,7 @@ document.addEventListener('DOMContentLoaded', function(){
       const panelEl = document.querySelector(`[data-panel="${id}"]`);
      window.__bootAccountsModules(panelEl);
     }
+     if (id === 'expenses' && window.renderExpenses) window.renderExpenses();
       if (id === 'carm' && window.initCarmMonth) window.initCarmMonth();
   };
 
