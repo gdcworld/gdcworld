@@ -443,15 +443,13 @@ if (path === '/carm/users' && method === 'GET') {
     (daysSum[day] ??= { carm:0, arthro:0 })[r.proc_type] += Number(r.qty || 0); // ✅ 추가
   }
 
-  const userList = Object.keys(users).sort((a,b)=>a.localeCompare(b,'ko'));
+ const userList = Object.keys(users).sort((a,b)=>a.localeCompare(b,'ko'));
 const rows = [];
 
-// month: "YYYY-MM" → 실제 말일 계산
-const [yyyy, mmStr] = String(month).split('-');
-const mm = Number(mmStr); // 1..12
-const daysInMonth = new Date(Number(yyyy), mm, 0).getDate(); // 해당 월의 말일
+// month는 "YYYY-MM"; mm는 1~12. JS Date에서 month+1 을 주고 day=0이면 그 달의 마지막 일수를 얻음.
+const lastDay = new Date(yy, mm, 0).getDate();
 
-for (let d = 1; d <= daysInMonth; d++) {   // ← 실제 일수만큼
+for (let d = 1; d <= lastDay; d++) {
   const row = { day: d };
   for (const u of userList) {
     const v = (days[d]?.[u]) || { carm:0, arthro:0 };
@@ -461,8 +459,7 @@ for (let d = 1; d <= daysInMonth; d++) {   // ← 실제 일수만큼
   rows.push(row);
 }
 
-  // ✅ daysSum 추가: 프론트에서 날짜 total을 바로 표시 가능
-  return send(200, { ok:true, users: userList, rows, totals, daysSum });
+return send(200, { ok:true, users: userList, rows, totals, daysSum });
 }
 
   // 라우트 없음
