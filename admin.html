@@ -93,7 +93,7 @@
         </div>
 
         <!-- 나머지 상위 메뉴 (단일 버튼) -->
-        <button data-view="income"><span class="left">📈 수입/지출</span>›</button>
+        <button data-view="expenses"><span class="left">📈 수입/지출</span>›</button>
         <button data-view="nhis"><span class="left">📋 공단 수령 현황</span>›</button>
         <button data-view="revisit"><span class="left">📊 재진율</span>›</button>
         <button data-view="claims"><span class="left">🧾 진료비 청구 내역</span>›</button>
@@ -243,7 +243,59 @@
 
 
       <!-- 기존 단일 패널 -->
-      <section class="panel hidden" data-panel="income"><h2 class="h1">수입/지출</h2>준비 중</section>
+      <section data-panel="expenses" class="panel hidden">
+  <h2 class="h1" style="margin-bottom:8px;">지출(병원카드) 월간 대시보드</h2>
+
+  <!-- 컨트롤 -->
+  <div class="tools" style="display:flex; align-items:center; gap:8px; margin-bottom:12px;">
+    <input id="expMonth" type="month"
+           style="padding:10px; border-radius:10px; border:1px solid #444;
+                  background:#1f2025; color:#fff;">
+    <button class="btn" id="expPrev">이전</button>
+    <button class="btn" id="expNext">다음</button>
+    <button class="btn" id="expReload">불러오기</button>
+    <div style="margin-left:auto; font-weight:800;">
+      월 합계: <span id="expTotal">0</span>원
+    </div>
+  </div>
+
+  <!-- 입력 폼 -->
+  <form id="expForm" class="panel"
+        style="display:grid; grid-template-columns: 140px 1fr 1fr 2fr auto;
+               gap:8px; align-items:center;">
+    <input name="payDate" type="date" required
+           style="padding:10px; border-radius:10px; border:1px solid #444;
+                  background:#1f2025; color:#fff;">
+    <input name="amount" type="number" min="1" step="1" placeholder="금액(원)" required
+           style="padding:10px; border-radius:10px; border:1px solid #444;
+                  background:#1f2025; color:#fff;">
+    <input name="merchant" type="text" placeholder="상호명" required
+           style="padding:10px; border-radius:10px; border:1px solid #444;
+                  background:#1f2025; color:#fff;">
+    <input name="purpose" type="text" placeholder="용도" required
+           style="padding:10px; border-radius:10px; border:1px solid #444;
+                  background:#1f2025; color:#fff;">
+    <button class="btn" type="submit">추가</button>
+    <input type="hidden" name="method" value="hospital_card">
+  </form>
+
+  <!-- 목록 -->
+  <div class="panel" style="padding:0;">
+    <table class="table" id="expTable">
+      <thead>
+        <tr>
+          <th style="width:120px;">날짜</th>
+          <th style="width:120px; text-align:right;">금액(원)</th>
+          <th>상호명</th>
+          <th>용도</th>
+          <th style="width:110px;">작업</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </div>
+</section>
+
       <section class="panel hidden" data-panel="nhis"><h2 class="h1">공단 수령 현황</h2>준비 중</section>
       <section class="panel hidden" data-panel="revisit"><h2 class="h1">재진율</h2>준비 중</section>
       <section class="panel hidden" data-panel="claims"><h2 class="h1">진료비 청구 내역</h2>준비 중</section>
@@ -268,7 +320,7 @@ document.addEventListener('DOMContentLoaded', function(){
   // ─ 역할 접근표 ─
   const VIEW_ACCESS = {
     admin:'ALL',
-    frontdesk:['income','closing'],
+    frontdesk:['expenses','closing'],
     nurse:['consumables-*','drugs-*'],
     physio:['noncovered-*'],
     ptadmin:[], radiology:['carm'], vice:[], staff:[], member:[]
@@ -348,7 +400,7 @@ document.addEventListener('DOMContentLoaded', function(){
     'accounts-physio':'물리치료사','accounts-ptadmin':'PT관리자','accounts-nurse':'간호사',
     'accounts-frontdesk':'원무','accounts-radiology':'방사선사','accounts-vice':'부원장',
     'partners':'계약 병원(파트너)','categories':'카테고리 관리',
-    'income':'수입/지출','nhis':'공단 수령 현황','revisit':'재진율','claims':'진료비 청구 내역','closing':'마감일지',
+    'income':'수입/지출','nhis':'공단 수령 현황','revisit':'재진율','claims':'진료비 청구 내역','closing':'마감일지','expenses':'수입/지출',
     'carm':'C-arm'
   };
   window.showPanel = function(id){
@@ -531,8 +583,7 @@ window.handleCarmHotkeys = function (e) {
 }
 
   const fmtMonth = (d)=> d.toISOString().slice(0,7);
-
-// ✅ (스크립트 상단, 함수 바깥)
+//
 window.getRole  = () => ((window.Auth?.currentRole && Auth.currentRole()) || 'member').toLowerCase();
 window.getEmail = () => (window.Auth?.currentUserEmail && Auth.currentUserEmail()) || '';
 
@@ -552,7 +603,7 @@ async function loadCarmUsers(){
 }
 
 
-// ✅ (기존 dayCard는 삭제하고, 이 버전만 남기기)
+//
 function dayCard(dayLabel, items, ymd, canEdit, totalC, totalA){
   const role = (window.Auth && Auth.currentRole && Auth.currentRole()) || null;
 
