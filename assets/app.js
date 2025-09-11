@@ -94,7 +94,7 @@ async function renderExpenses() {
   const table      = document.getElementById('expTable');
   const tbody      = table ? table.querySelector('tbody') : null;
 
-  if (!monthInput || !tbody) return; // 패널이 아직 DOM에 없으면 스킵
+  if (!monthInput || !tbody) return; // 패널이 아직 없으면 스킵
 
   // 최초 진입 시 기본 월 = 오늘
   if (!monthInput.value) {
@@ -138,7 +138,7 @@ async function renderExpenses() {
     }
   };
 
-  // 월 이동 버튼
+  // 월 이동/새로고침
   prevBtn?.addEventListener('click', ()=>{
     const d = new Date(monthInput.value+'-01');
     d.setMonth(d.getMonth()-1);
@@ -154,7 +154,7 @@ async function renderExpenses() {
   reloadBtn?.addEventListener('click', load);
   monthInput.addEventListener('change', load);
 
-  // 추가(POST)
+  // 추가(POST) — ★ 기본 제출 방지 + API 호출
   form?.addEventListener('submit', async (e)=>{
     e.preventDefault();
     const fd = new FormData(form);
