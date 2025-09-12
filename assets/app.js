@@ -57,23 +57,23 @@
     init() {
       // 네비 버튼 클릭 -> 패널 전환
       qsa('.nav button').forEach(btn => {
-  btn.addEventListener('click', () => {
-    const v = btn.dataset.view;
-    activate(v);
+        btn.addEventListener('click', () => {
+          const v = btn.dataset.view;
+          activate(v);
 
-    if (v === 'partners') renderPartners();
-    if (v === 'expenses') renderExpenses();   // ← 추가!
+          if (v === 'partners') renderPartners();
+          if (v === 'expenses') renderExpenses();
 
-    const panel = qs(`[data-panel="${v}"]`);
-    if (panel && panel.querySelector('.account-module')) {
-      if (window.__bootAccountsModules) {
-        window.__bootAccountsModules(panel);
-      } else {
-        console.warn('__bootAccountsModules가 로드되지 않았습니다.');
-      }
-    }
-  });
-});
+          const panel = qs(`[data-panel="${v}"]`);
+          if (panel && panel.querySelector('.account-module')) {
+            if (window.__bootAccountsModules) {
+              window.__bootAccountsModules(panel);
+            } else {
+              console.warn('__bootAccountsModules가 로드되지 않았습니다.');
+            }
+          }
+        });
+      });
 
       // 초기 화면: 파트너
       activate('partners');
@@ -83,8 +83,37 @@
 })();
 
 
+// ---- 공용 API 헬퍼 (모든 엔드포인트용) ----
+async function apiRequest(path, opts = {}) {
+  const token = window.Auth?.currentToken?.();
+  const headers = {
+    'Content-Type': 'application/json',
+    ...(opts.headers || {}),
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+  };
+  let body = opts.body;
+  if (body && typeof body === 'object' && !(body instanceof FormData) && !opts._rawBody) {
+    body = JSON.stringify(body);
+  }
+  const baseOpts = { method: 'GET', ...opts, headers, body };
 
-// 지출(병원카드) 월간 보드 렌더러  [최종본]
+  // 1차: /api
+  const try1 = await fetch(`/api${path}`, baseOpts).catch(() => null);
+  if (try1 && try1.ok) return try1.json();
+
+  // 2차: /.netlify/functions/api
+  const try2 = await fetch(`/.netlify/functions/api${path}`, baseOpts).catch(() => null);
+  if (try2 && try2.ok) return try2.json();
+
+  const j1 = try1 ? await try1.json().catch(()=>null) : null;
+  const j2 = try2 ? await try2.json().catch(()=>null) : null;
+  const msg = (j1 && j1.message) || (j2 && j2.message) || 'request_failed';
+  throw new Error(msg);
+}
+
+
+
+// 지출(병원카드) 월간 보드 렌더러 [apiRequest 버전]
 async function renderExpenses() {
   const monthInput = document.getElementById('expMonth');
   const prevBtn    = document.getElementById('expPrev');
@@ -105,13 +134,13 @@ async function renderExpenses() {
   const escapeHtml = (s='') =>
     String(s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]));
 
-  // 목록 불러오기
+  // ── 목록 불러오기 ──
   const load = async () => {
     const m = monthInput.value;
     if (!m) return;
     tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; padding:18px;">불러오는 중…</td></tr>`;
     try {
-      const j = await carmApi(`/expenses?month=${encodeURIComponent(m)}&method=hospital_card`);
+      const j = await apiRequest(`/expenses?month=${encodeURIComponent(m)}&method=hospital_card`);
       const rows = (j.items || []).map(it => `
         <tr data-id="${it.id}">
           <td>${it.pay_date}</td>
@@ -162,7 +191,7 @@ async function renderExpenses() {
     if (!payload.payDate || !payload.amount || !payload.merchant || !payload.purpose) return;
 
     try {
-      await carmApi('/expenses', { method:'POST', body: payload });
+      await apiRequest('/expenses', { method: 'POST', body: payload });
       form.reset();
       load();
     } catch (err) {
@@ -178,7 +207,7 @@ async function renderExpenses() {
     if (btn.classList.contains('exp-del')) {
       if (!confirm('삭제할까요?')) return;
       try {
-        await carmApi('/expenses', { method:'DELETE', body:{ id } });
+        await apiRequest('/expenses', { method:'DELETE', body:{ id } });
         load();
       } catch (err) {
         alert('삭제 실패: ' + (err?.message || err));
@@ -200,7 +229,7 @@ async function renderExpenses() {
       const purpose  = prompt('용도', cur.purpose)||'';   if (!purpose.trim()) return;
 
       try {
-        await carmApi('/expenses', { method:'PATCH', body:{ id, payDate:date, amount, merchant, purpose } });
+        await apiRequest('/expenses', { method:'PATCH', body:{ id, payDate:date, amount, merchant, purpose } });
         load();
       } catch (err) {
         alert('수정 실패: ' + (err?.message || err));
@@ -208,6 +237,6 @@ async function renderExpenses() {
     }
   });
 
-  // 처음 한 번 로드
+  // 최초 로드
   load();
 }
