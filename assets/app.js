@@ -275,3 +275,4 @@ exportBtn?.addEventListener('click', ()=>{
 
 // 최초 로드
 load();
+} 
