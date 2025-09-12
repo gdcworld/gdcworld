@@ -123,6 +123,9 @@ async function renderExpenses() {
   const form       = document.getElementById('expForm');
   const table      = document.getElementById('expTable');
   const tbody      = table ? table.querySelector('tbody') : null;
+ 
+ const exportBtn  = document.getElementById('expExport');  
+  let   lastItems  = [];
 
   if (!monthInput || !tbody) return;
 
@@ -141,6 +144,7 @@ async function renderExpenses() {
     tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; padding:18px;">불러오는 중…</td></tr>`;
     try {
       const j = await apiRequest(`/expenses?month=${encodeURIComponent(m)}&method=hospital_card`);
+      lastItems = j.items || [];  
       const rows = (j.items || []).map(it => `
         <tr data-id="${it.id}">
           <td>${it.pay_date}</td>
@@ -176,6 +180,33 @@ async function renderExpenses() {
   });
   reloadBtn?.addEventListener('click', load);
   monthInput.addEventListener('change', load);
+
+ exportBtn?.addEventListener('click', () => {              
+    const m = monthInput.value || 'unknown-month';
+    const rows = Array.isArray(lastItems) ? lastItems : [];
+    if (!rows.length) {
+      alert('내보낼 내역이 없습니다. 먼저 불러오기를 눌러주세요.');
+      return;
+    }
+
+    const esc = (s='') => {
+      const t = String(s).replaceAll('"','""').replace(/\r?\n/g,' ');
+      return `"${t}"`;
+    };
+
+    const header = ['날짜','금액(원)','상호명','용도','결제수단','비고'];
+    const lines = [header.join(',')];
+
+    for (const r of rows) {
+      lines.push([
+        r.pay_date || '',
+        Number(r.amount || 0),     // 숫자는 따옴표 없이
+        esc(r.merchant || ''),
+        esc(r.purpose  || ''),
+        esc(r.method   || ''),
+        esc(r.note     || '')
+      ].join(','));
+    }
 
   // 추가(POST)
   form?.addEventListener('submit', async (e)=>{
@@ -235,6 +266,17 @@ async function renderExpenses() {
         alert('수정 실패: ' + (err?.message || err));
       }
     }
+ const total = rows.reduce((s, r) => s + (Number(r.amount||0) || 0), 0);
+    lines.push(['합계', total, '', '', '', ''].join(','));
+
+    const csv = '\uFEFF' + lines.join('\r\n');  // BOM
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `expenses-${m}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
   });
 
   // 최초 로드
