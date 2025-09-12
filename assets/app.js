@@ -94,7 +94,7 @@ async function renderExpenses() {
   const table      = document.getElementById('expTable');
   const tbody      = table ? table.querySelector('tbody') : null;
 
-  if (!monthInput || !tbody) return; // 패널이 아직 DOM에 없으면 스킵
+  if (!monthInput || !tbody) return;
 
   // 최초 진입 시 기본 월 = 오늘
   if (!monthInput.value) {
@@ -102,25 +102,16 @@ async function renderExpenses() {
     monthInput.value = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
   }
 
-  // 유틸: 간단한 이스케이프
   const escapeHtml = (s='') =>
     String(s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]));
 
-  // 리스트 불러오기 (필요할 때마다 재사용)
+  // ── 리스트 불러오기 ──
   const load = async () => {
     const m = monthInput.value;
     if (!m) return;
     tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; padding:18px;">불러오는 중…</td></tr>`;
     try {
-      const r = await fetch(`/api/expenses?month=${encodeURIComponent(m)}&method=hospital_card`, {
-        headers: {
-          'Content-Type':'application/json',
-          ...(window.Auth?.currentToken?.() ? { Authorization: `Bearer ${Auth.currentToken()}` } : {})
-        }
-      });
-      const j = await r.json();
-      if (!r.ok || j.ok === false) throw new Error(j.message || 'load failed');
-
+      const j = await carmApi(`/expenses?month=${encodeURIComponent(m)}&method=hospital_card`);
       const rows = (j.items || []).map(it => `
         <tr data-id="${it.id}">
           <td>${it.pay_date}</td>
@@ -133,7 +124,6 @@ async function renderExpenses() {
           </td>
         </tr>
       `).join('');
-
       tbody.innerHTML = rows || `<tr><td colspan="5" style="text-align:center; padding:18px;">내역 없음</td></tr>`;
       totalEl.textContent = Number(j.total||0).toLocaleString();
     } catch (err) {
@@ -142,7 +132,7 @@ async function renderExpenses() {
     }
   };
 
-  // ── 이벤트 리스너는 "한 번만" 바인딩되도록 가드 처리 ──
+  // ── 이벤트 바인딩 (중복 방지) ──
   if (!monthInput.dataset.bound) {
     monthInput.dataset.bound = '1';
     monthInput.addEventListener('change', load);
@@ -173,7 +163,7 @@ async function renderExpenses() {
   if (form && !form.dataset.bound) {
     form.dataset.bound = '1';
     form.addEventListener('submit', async (e)=>{
-      e.preventDefault(); // ★ 기본 제출 방지 (쿼리 붙는 문제 차단)
+      e.preventDefault();
       const fd = new FormData(form);
       const payload = {
         payDate:  fd.get('payDate'),
@@ -185,16 +175,10 @@ async function renderExpenses() {
       if (!payload.payDate || !payload.amount || !payload.merchant || !payload.purpose) return;
 
       try {
-        const r = await fetch('/api/expenses', {
+        await carmApi('/expenses', {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            ...(window.Auth?.currentToken?.() ? { Authorization: `Bearer ${Auth.currentToken()}` } : {})
-          },
           body: JSON.stringify(payload)
         });
-        const j = await r.json();
-        if (!r.ok || j.ok === false) throw new Error(j.message || 'post failed');
         form.reset();
         load();
       } catch (err) {
@@ -212,16 +196,10 @@ async function renderExpenses() {
       if (btn.classList.contains('exp-del')) {
         if (!confirm('삭제할까요?')) return;
         try {
-          const r = await fetch('/api/expenses', {
+          await carmApi('/expenses', {
             method: 'DELETE',
-            headers: {
-              'Content-Type':'application/json',
-              ...(window.Auth?.currentToken?.() ? { Authorization: `Bearer ${Auth.currentToken()}` } : {})
-            },
             body: JSON.stringify({ id })
           });
-          const j = await r.json();
-          if (!r.ok || j.ok === false) throw new Error(j.message || 'delete failed');
           load();
         } catch (err) {
           alert('삭제 실패: ' + (err?.message || err));
@@ -241,12 +219,8 @@ async function renderExpenses() {
         const newPurpose  = prompt('용도:',     cur.purpose);  if (newPurpose===null) return;
 
         try {
-          const r = await fetch('/api/expenses', {
+          await carmApi('/expenses', {
             method: 'PATCH',
-            headers: {
-              'Content-Type':'application/json',
-              ...(window.Auth?.currentToken?.() ? { Authorization: `Bearer ${Auth.currentToken()}` } : {})
-            },
             body: JSON.stringify({
               id,
               amount:   Number(newAmount||0),
@@ -254,8 +228,6 @@ async function renderExpenses() {
               purpose:  newPurpose
             })
           });
-          const j = await r.json();
-          if (!r.ok || j.ok === false) throw new Error(j.message || 'patch failed');
           load();
         } catch (err) {
           alert('수정 실패: ' + (err?.message || err));
@@ -264,6 +236,6 @@ async function renderExpenses() {
     });
   }
 
-  // 패널 열릴 때마다 최신 데이터 로드
+  // ── 최초 로드 ──
   load();
 }
