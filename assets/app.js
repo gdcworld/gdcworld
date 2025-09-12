@@ -146,17 +146,17 @@ const load = async () => {
     const j = await apiRequest(`/expenses?month=${encodeURIComponent(m)}&method=hospital_card`);
     lastItems = j.items || [];
     const rows = (j.items || []).map(it => `
-      <tr data-id="${it.id}">
-        <td>${it.pay_date}</td>
-        <td style="text-align:right;">${Number(it.amount||0).toLocaleString()}</td>
-        <td>${escapeHtml(it.merchant||'')}</td>
-        <td>${escapeHtml(it.purpose||'')}</td>
-        <td>
-          <button class="btn ghost exp-edit" type="button" data-id="${it.id}">수정</button>
-          <button class="btn ghost exp-del"  type="button" data-id="${it.id}">삭제</button>
-        </td>
-      </tr>
-    `).join('');
+  <tr data-id="${it.id}">
+    <td>${it.pay_date}</td>
+    <td style="text-align:right;">${Number(it.amount||0).toLocaleString()}</td>
+    <td>${escapeHtml(it.merchant||'')}</td>
+    <td>${escapeHtml(it.purpose||'')}</td>
+    <td>
+      <button class="btn ghost exp-edit" type="button" data-id="${it.id}">수정</button>
+      <button class="btn ghost exp-del"  type="button" data-id="${it.id}">삭제</button>
+    </td>
+  </tr>
+`).join('');
     tbody.innerHTML = rows || `<tr><td colspan="5" style="text-align:center; padding:18px;">내역 없음</td></tr>`;
     totalEl.textContent = Number(j.total||0).toLocaleString();
   } catch (err) {

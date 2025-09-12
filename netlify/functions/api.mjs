@@ -467,7 +467,7 @@ return send(200, { ok:true, users: userList, rows, totals, daysSum });
 // PATCH /api/expenses { id, ...fields }
 // DELETE /api/expenses { id }
 if (path === '/expenses') {
-  const check = requireRole(auth, ['admin']); // 필요 시 다른 역할 허용
+  const check = requireRole(auth, ['admin','frontdesk']); // 필요 시 다른 역할 허용
   if (!check.ok) return send(check.status, { ok:false, message: check.message });
 
   if (method === 'GET') {
