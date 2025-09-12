@@ -83,7 +83,8 @@
 })();
 
 
-// 지출(병원카드) 월간 보드 렌더러  [교체본]
+
+// 지출(병원카드) 월간 보드 렌더러  [최종본]
 async function renderExpenses() {
   const monthInput = document.getElementById('expMonth');
   const prevBtn    = document.getElementById('expPrev');
@@ -96,7 +97,6 @@ async function renderExpenses() {
 
   if (!monthInput || !tbody) return;
 
-  // 최초 진입 시 기본 월 = 오늘
   if (!monthInput.value) {
     const d = new Date();
     monthInput.value = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
@@ -105,7 +105,7 @@ async function renderExpenses() {
   const escapeHtml = (s='') =>
     String(s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]));
 
-  // ── 리스트 불러오기 ──
+  // 목록 불러오기
   const load = async () => {
     const m = monthInput.value;
     if (!m) return;
@@ -132,110 +132,82 @@ async function renderExpenses() {
     }
   };
 
-  // ── 이벤트 바인딩 (중복 방지) ──
-  if (!monthInput.dataset.bound) {
-    monthInput.dataset.bound = '1';
-    monthInput.addEventListener('change', load);
-  }
-  if (prevBtn && !prevBtn.dataset.bound) {
-    prevBtn.dataset.bound = '1';
-    prevBtn.addEventListener('click', ()=>{
-      const d = new Date(monthInput.value+'-01');
-      d.setMonth(d.getMonth()-1);
-      monthInput.value = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
-      load();
-    });
-  }
-  if (nextBtn && !nextBtn.dataset.bound) {
-    nextBtn.dataset.bound = '1';
-    nextBtn.addEventListener('click', ()=>{
-      const d = new Date(monthInput.value+'-01');
-      d.setMonth(d.getMonth()+1);
-      monthInput.value = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
-      load();
-    });
-  }
-  if (reloadBtn && !reloadBtn.dataset.bound) {
-    reloadBtn.dataset.bound = '1';
-    reloadBtn.addEventListener('click', load);
-  }
+  // 월 이동/새로고침
+  prevBtn?.addEventListener('click', ()=>{
+    const d = new Date(monthInput.value+'-01');
+    d.setMonth(d.getMonth()-1);
+    monthInput.value = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+    load();
+  });
+  nextBtn?.addEventListener('click', ()=>{
+    const d = new Date(monthInput.value+'-01');
+    d.setMonth(d.getMonth()+1);
+    monthInput.value = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+    load();
+  });
+  reloadBtn?.addEventListener('click', load);
+  monthInput.addEventListener('change', load);
 
-  if (form && !form.dataset.bound) {
-    form.dataset.bound = '1';
-    form.addEventListener('submit', async (e)=>{
-      e.preventDefault();
-      const fd = new FormData(form);
-      const payload = {
-        payDate:  fd.get('payDate'),
-        amount:   Number(fd.get('amount')||0),
-        merchant: String(fd.get('merchant')||'').trim(),
-        purpose:  String(fd.get('purpose')||'').trim(),
-        method:   'hospital_card'
-      };
-      if (!payload.payDate || !payload.amount || !payload.merchant || !payload.purpose) return;
+  // 추가(POST)
+  form?.addEventListener('submit', async (e)=>{
+    e.preventDefault();
+    const fd = new FormData(form);
+    const payload = {
+      payDate:  fd.get('payDate'),
+      amount:   Number(fd.get('amount')||0),
+      merchant: String(fd.get('merchant')||'').trim(),
+      purpose:  String(fd.get('purpose')||'').trim(),
+      method:   'hospital_card'
+    };
+    if (!payload.payDate || !payload.amount || !payload.merchant || !payload.purpose) return;
 
+    try {
+      await carmApi('/expenses', { method:'POST', body: payload });
+      form.reset();
+      load();
+    } catch (err) {
+      alert('등록 실패: ' + (err?.message || err));
+    }
+  });
+
+  // 수정/삭제
+  table?.addEventListener('click', async (e)=>{
+    const btn = e.target.closest('button'); if (!btn) return;
+    const id = btn.dataset.id; if (!id) return;
+
+    if (btn.classList.contains('exp-del')) {
+      if (!confirm('삭제할까요?')) return;
       try {
-        await carmApi('/expenses', {
-          method: 'POST',
-          body: JSON.stringify(payload)
-        });
-        form.reset();
+        await carmApi('/expenses', { method:'DELETE', body:{ id } });
         load();
       } catch (err) {
-        alert('등록 실패: ' + (err?.message || err));
+        alert('삭제 실패: ' + (err?.message || err));
       }
-    });
-  }
+      return;
+    }
 
-  if (table && !table.dataset.bound) {
-    table.dataset.bound = '1';
-    table.addEventListener('click', async (e)=>{
-      const btn = e.target.closest('button'); if (!btn) return;
-      const id = btn.dataset.id; if (!id) return;
+    if (btn.classList.contains('exp-edit')) {
+      const tr = btn.closest('tr');
+      const cur = {
+        date:     tr.children[0].textContent.trim(),
+        amount:   tr.children[1].textContent.replace(/[^0-9]/g,''),
+        merchant: tr.children[2].textContent.trim(),
+        purpose:  tr.children[3].textContent.trim()
+      };
+      const date = prompt('날짜(YYYY-MM-DD)', cur.date); if (!date) return;
+      const amount = Number(prompt('금액(원)', cur.amount)||0); if (!amount) return;
+      const merchant = prompt('상호명', cur.merchant)||''; if (!merchant.trim()) return;
+      const purpose  = prompt('용도', cur.purpose)||'';   if (!purpose.trim()) return;
 
-      if (btn.classList.contains('exp-del')) {
-        if (!confirm('삭제할까요?')) return;
-        try {
-          await carmApi('/expenses', {
-            method: 'DELETE',
-            body: JSON.stringify({ id })
-          });
-          load();
-        } catch (err) {
-          alert('삭제 실패: ' + (err?.message || err));
-        }
-        return;
+      try {
+        await carmApi('/expenses', { method:'PATCH', body:{ id, payDate:date, amount, merchant, purpose } });
+        load();
+      } catch (err) {
+        alert('수정 실패: ' + (err?.message || err));
       }
+    }
+  });
 
-      if (btn.classList.contains('exp-edit')) {
-        const tr = btn.closest('tr');
-        const cur = {
-          amount:   tr.children[1].textContent.replace(/[^0-9]/g,''),
-          merchant: tr.children[2].textContent.trim(),
-          purpose:  tr.children[3].textContent.trim()
-        };
-        const newAmount   = prompt('금액(원):', cur.amount);   if (newAmount===null) return;
-        const newMerchant = prompt('상호명:',   cur.merchant); if (newMerchant===null) return;
-        const newPurpose  = prompt('용도:',     cur.purpose);  if (newPurpose===null) return;
-
-        try {
-          await carmApi('/expenses', {
-            method: 'PATCH',
-            body: JSON.stringify({
-              id,
-              amount:   Number(newAmount||0),
-              merchant: newMerchant,
-              purpose:  newPurpose
-            })
-          });
-          load();
-        } catch (err) {
-          alert('수정 실패: ' + (err?.message || err));
-        }
-      }
-    });
-  }
-
-  // ── 최초 로드 ──
+  // 처음 한 번 로드
   load();
 }
