@@ -99,12 +99,12 @@ export async function handler(event) {
   if (event.httpMethod === 'OPTIONS') return send(204, {});
 
   // 실제 path 계산 (프록시/직접호출 모두 지원)
-  const urlObj = event.rawUrl ? new URL(event.rawUrl) : null;
-  const fullPath = event.path || urlObj?.pathname || '';
- let path = fullPath
-   .replace(/\/.netlify\/functions\/api/i, '')
-   .replace(/^\/api/i, '');
-  if (!path) path = '/';
+  const rawUrl  = event.rawUrl ? new URL(event.rawUrl) : null;
+const rawPath = rawUrl ? rawUrl.pathname : (event.path || '');
+let path = (rawPath || '')
+  .replace(/\/.netlify\/functions\/api/i, '')
+  .replace(/^\/api/i, '');
+if (!path || path === '') path = '/';
 if (!path.startsWith('/')) path = '/' + path;
 
   const method = (event.httpMethod || 'GET').toUpperCase();
