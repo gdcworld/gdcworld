@@ -137,148 +137,141 @@ async function renderExpenses() {
   const escapeHtml = (s='') =>
     String(s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]));
 
-  // ── 목록 불러오기 ──
-  const load = async () => {
-    const m = monthInput.value;
-    if (!m) return;
-    tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; padding:18px;">불러오는 중…</td></tr>`;
-    try {
-      const j = await apiRequest(`/expenses?month=${encodeURIComponent(m)}&method=hospital_card`);
-      lastItems = j.items || [];  
-      const rows = (j.items || []).map(it => `
-        <tr data-id="${it.id}">
-          <td>${it.pay_date}</td>
-          <td style="text-align:right;">${Number(it.amount||0).toLocaleString()}</td>
-          <td>${escapeHtml(it.merchant||'')}</td>
-          <td>${escapeHtml(it.purpose||'')}</td>
-          <td>
-            <button class="btn ghost exp-edit" type="button" data-id="${it.id}">수정</button>
-            <button class="btn ghost exp-del"  type="button" data-id="${it.id}">삭제</button>
-          </td>
-        </tr>
-      `).join('');
-      tbody.innerHTML = rows || `<tr><td colspan="5" style="text-align:center; padding:18px;">내역 없음</td></tr>`;
-      totalEl.textContent = Number(j.total||0).toLocaleString();
-    } catch (err) {
-      tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; color:#f99; padding:18px;">불러오기 실패</td></tr>`;
-      console.warn('expenses load error:', err);
-    }
+ // ── 목록 불러오기 ──
+const load = async () => {
+  const m = monthInput.value;
+  if (!m) return;
+  tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; padding:18px;">불러오는 중…</td></tr>`;
+  try {
+    const j = await apiRequest(`/expenses?month=${encodeURIComponent(m)}&method=hospital_card`);
+    lastItems = j.items || [];
+    const rows = (j.items || []).map(it => `
+      <tr data-id="${it.id}">
+        <td>${it.pay_date}</td>
+        <td style="text-align:right;">${Number(it.amount||0).toLocaleString()}</td>
+        <td>${escapeHtml(it.merchant||'')}</td>
+        <td>${escapeHtml(it.purpose||'')}</td>
+        <td>
+          <button class="btn ghost exp-edit" type="button" data-id="${it.id}">수정</button>
+          <button class="btn ghost exp-del"  type="button" data-id="${it.id}">삭제</button>
+        </td>
+      </tr>
+    `).join('');
+    tbody.innerHTML = rows || `<tr><td colspan="5" style="text-align:center; padding:18px;">내역 없음</td></tr>`;
+    totalEl.textContent = Number(j.total||0).toLocaleString();
+  } catch (err) {
+    tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; color:#f99; padding:18px;">불러오기 실패</td></tr>`;
+    console.warn('expenses load error:', err);
+  }
+};
+
+// ▼ 월 이동/새로고침
+prevBtn?.addEventListener('click', ()=>{
+  const d = new Date(monthInput.value+'-01');
+  d.setMonth(d.getMonth()-1);
+  monthInput.value = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+  load();
+});
+nextBtn?.addEventListener('click', ()=>{
+  const d = new Date(monthInput.value+'-01');
+  d.setMonth(d.getMonth()+1);
+  monthInput.value = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+  load();
+});
+reloadBtn?.addEventListener('click', load);
+monthInput.addEventListener('change', load);
+
+// ▼ 추가(POST)
+form?.addEventListener('submit', async (e)=>{
+  e.preventDefault();
+  const fd = new FormData(form);
+  const payload = {
+    payDate:  fd.get('payDate'),
+    amount:   Number(fd.get('amount')||0),
+    merchant: String(fd.get('merchant')||'').trim(),
+    purpose:  String(fd.get('purpose')||'').trim(),
+    method:   'hospital_card',
   };
-
-  // 월 이동/새로고침
-  prevBtn?.addEventListener('click', ()=>{
-    const d = new Date(monthInput.value+'-01');
-    d.setMonth(d.getMonth()-1);
-    monthInput.value = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+  if (!payload.payDate || !payload.amount || !payload.merchant || !payload.purpose) return;
+  try {
+    await apiRequest('/expenses', { method:'POST', body: payload });
+    form.reset();
     load();
-  });
-  nextBtn?.addEventListener('click', ()=>{
-    const d = new Date(monthInput.value+'-01');
-    d.setMonth(d.getMonth()+1);
-    monthInput.value = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
-    load();
-  });
-  reloadBtn?.addEventListener('click', load);
-  monthInput.addEventListener('change', load);
+  } catch (err) {
+    alert('등록 실패: ' + (err?.message || err));
+  }
+});
 
- exportBtn?.addEventListener('click', () => {              
-    const m = monthInput.value || 'unknown-month';
-    const rows = Array.isArray(lastItems) ? lastItems : [];
-    if (!rows.length) {
-      alert('내보낼 내역이 없습니다. 먼저 불러오기를 눌러주세요.');
-      return;
-    }
+// ▼ 수정/삭제
+table?.addEventListener('click', async (e)=>{
+  const btn = e.target.closest('button'); if (!btn) return;
+  const id = btn.dataset.id; if (!id) return;
 
-    const esc = (s='') => {
-      const t = String(s).replaceAll('"','""').replace(/\r?\n/g,' ');
-      return `"${t}"`;
-    };
-
-    const header = ['날짜','금액(원)','상호명','용도','결제수단','비고'];
-    const lines = [header.join(',')];
-
-    for (const r of rows) {
-      lines.push([
-        r.pay_date || '',
-        Number(r.amount || 0),     // 숫자는 따옴표 없이
-        esc(r.merchant || ''),
-        esc(r.purpose  || ''),
-        esc(r.method   || ''),
-        esc(r.note     || '')
-      ].join(','));
-    }
-
-  // 추가(POST)
-  form?.addEventListener('submit', async (e)=>{
-    e.preventDefault();
-    const fd = new FormData(form);
-    const payload = {
-      payDate:  fd.get('payDate'),
-      amount:   Number(fd.get('amount')||0),
-      merchant: String(fd.get('merchant')||'').trim(),
-      purpose:  String(fd.get('purpose')||'').trim(),
-      method:   'hospital_card'
-    };
-    if (!payload.payDate || !payload.amount || !payload.merchant || !payload.purpose) return;
-
+  if (btn.classList.contains('exp-del')) {
+    if (!confirm('삭제할까요?')) return;
     try {
-      await apiRequest('/expenses', { method: 'POST', body: payload });
-      form.reset();
+      await apiRequest('/expenses', { method:'DELETE', body:{ id } });
       load();
     } catch (err) {
-      alert('등록 실패: ' + (err?.message || err));
+      alert('삭제 실패: ' + (err?.message || err));
     }
-  });
+    return;
+  }
 
-  // 수정/삭제
-  table?.addEventListener('click', async (e)=>{
-    const btn = e.target.closest('button'); if (!btn) return;
-    const id = btn.dataset.id; if (!id) return;
-
-    if (btn.classList.contains('exp-del')) {
-      if (!confirm('삭제할까요?')) return;
-      try {
-        await apiRequest('/expenses', { method:'DELETE', body:{ id } });
-        load();
-      } catch (err) {
-        alert('삭제 실패: ' + (err?.message || err));
-      }
-      return;
+  if (btn.classList.contains('exp-edit')) {
+    const tr = btn.closest('tr');
+    const cur = {
+      date:     tr.children[0].textContent.trim(),
+      amount:   tr.children[1].textContent.replace(/[^0-9]/g,''),
+      merchant: tr.children[2].textContent.trim(),
+      purpose:  tr.children[3].textContent.trim(),
+    };
+    const date = prompt('날짜(YYYY-MM-DD)', cur.date); if (!date) return;
+    const amount = Number(prompt('금액(원)', cur.amount)||0); if (!amount) return;
+    const merchant = prompt('상호명', cur.merchant)||''; if (!merchant.trim()) return;
+    const purpose  = prompt('용도', cur.purpose)||'';   if (!purpose.trim()) return;
+    try {
+      await apiRequest('/expenses', { method:'PATCH', body:{ id, payDate:date, amount, merchant, purpose } });
+      load();
+    } catch (err) {
+      alert('수정 실패: ' + (err?.message || err));
     }
+  }
+});
 
-    if (btn.classList.contains('exp-edit')) {
-      const tr = btn.closest('tr');
-      const cur = {
-        date:     tr.children[0].textContent.trim(),
-        amount:   tr.children[1].textContent.replace(/[^0-9]/g,''),
-        merchant: tr.children[2].textContent.trim(),
-        purpose:  tr.children[3].textContent.trim()
-      };
-      const date = prompt('날짜(YYYY-MM-DD)', cur.date); if (!date) return;
-      const amount = Number(prompt('금액(원)', cur.amount)||0); if (!amount) return;
-      const merchant = prompt('상호명', cur.merchant)||''; if (!merchant.trim()) return;
-      const purpose  = prompt('용도', cur.purpose)||'';   if (!purpose.trim()) return;
+// ▼ CSV 다운로드 (이 핸들러에는 CSV 로직만!)
+exportBtn?.addEventListener('click', ()=>{
+  const m = monthInput.value || 'unknown-month';
+  const rows = Array.isArray(lastItems) ? lastItems : [];
+  if (!rows.length) {
+    alert('내보낼 내역이 없습니다. 먼저 불러오기를 눌러주세요.');
+    return;
+  }
+  const esc = (s='') => `"${String(s).replaceAll('"','""').replace(/\r?\n/g,' ')}"`;
+  const header = ['날짜','금액(원)','상호명','용도','결제수단','비고'];
+  const lines = [header.join(',')];
+  for (const r of rows) {
+    lines.push([
+      r.pay_date || '',
+      Number(r.amount || 0),
+      esc(r.merchant || ''),
+      esc(r.purpose  || ''),
+      esc(r.method   || ''),
+      esc(r.note     || ''),
+    ].join(','));
+  }
+  const total = rows.reduce((s, r)=> s + (Number(r.amount||0) || 0), 0);
+  lines.push(['합계', total, '', '', '', ''].join(','));
 
-      try {
-        await apiRequest('/expenses', { method:'PATCH', body:{ id, payDate:date, amount, merchant, purpose } });
-        load();
-      } catch (err) {
-        alert('수정 실패: ' + (err?.message || err));
-      }
-    }
- const total = rows.reduce((s, r) => s + (Number(r.amount||0) || 0), 0);
-    lines.push(['합계', total, '', '', '', ''].join(','));
+  const csv = '\uFEFF' + lines.join('\r\n');
+  const blob = new Blob([csv], { type:'text/csv;charset=utf-8;' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `expenses-${m}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+});
 
-    const csv = '\uFEFF' + lines.join('\r\n');  // BOM
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = `expenses-${m}.csv`;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-  });
-
-  // 최초 로드
-  load();
-}
+// 최초 로드
+load();
