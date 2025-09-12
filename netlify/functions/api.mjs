@@ -99,13 +99,13 @@ export async function handler(event) {
   if (event.httpMethod === 'OPTIONS') return send(204, {});
 
   // 실제 path 계산 (프록시/직접호출 모두 지원)
-  const rawUrl  = event.rawUrl ? new URL(event.rawUrl) : null;
-  const rawPath = rawUrl ? rawUrl.pathname : (event.path || '');
-  let path = (rawPath || '')
-    .replace(/\/.netlify\/functions\/api/i, '')
-    .replace(/^\/api/i, '');
-  if (!path || path === '') path = '/';
-  if (!path.startsWith('/')) path = '/' + path;
+  const urlObj = event.rawUrl ? new URL(event.rawUrl) : null;
+  const fullPath = event.path || urlObj?.pathname || '';
+ let path = fullPath
+   .replace(/\/.netlify\/functions\/api/i, '')
+   .replace(/^\/api/i, '');
+  if (!path) path = '/';
+if (!path.startsWith('/')) path = '/' + path;
 
   const method = (event.httpMethod || 'GET').toUpperCase();
   const auth   = readAuth(event); // 로그인 토큰 해석 (없으면 null)
@@ -460,6 +460,108 @@ for (let d = 1; d <= lastDay; d++) {
 }
 
 return send(200, { ok:true, users: userList, rows, totals, daysSum });
+}
+// ───────── 지출(Expenses) ─────────
+// GET  /api/expenses?month=YYYY-MM&method=hospital_card
+// POST /api/expenses { payDate, amount, merchant, purpose, method?, note? }
+// PATCH /api/expenses { id, ...fields }
+// DELETE /api/expenses { id }
+if (path === '/expenses') {
+  const check = requireRole(auth, ['admin']); // 필요 시 다른 역할 허용
+  if (!check.ok) return send(check.status, { ok:false, message: check.message });
+
+  if (method === 'GET') {
+    const url   = new URL(event.rawUrl);
+    const month = url.searchParams.get('month'); // YYYY-MM
+    const methodFilter = (url.searchParams.get('method') || 'hospital_card').toLowerCase();
+
+    if (!month || !/^\d{4}-\d{2}$/.test(month)) {
+      return send(400, { ok:false, message:'month (YYYY-MM) required' });
+    }
+
+    const [yy, mm] = month.split('-').map(Number);
+    const from = `${month}-01`;
+    const nextMonth = (mm === 12) ? `${yy+1}-01-01` : `${yy}-${String(mm+1).padStart(2,'0')}-01`;
+
+    const { data, error } = await supabase
+      .from('expenses')
+      .select('id, pay_date, amount, merchant, purpose, method, note, created_by, created_at')
+      .eq('method', methodFilter)
+      .gte('pay_date', from).lt('pay_date', nextMonth)
+      .order('pay_date', { ascending: true })
+      .order('created_at', { ascending: true });
+
+    if (error) return send(400, { ok:false, message: error.message });
+
+    // 월 합계
+    const total = (data || []).reduce((s, r)=> s + (Number(r.amount)||0), 0);
+    return send(200, { ok:true, items: data || [], total });
+  }
+
+  if (method === 'POST') {
+    const body = safeJson(event.body) || {};
+    const payDate = body.payDate;
+    const amount = Number(body.amount || 0);
+    const merchant = (body.merchant || '').trim();
+    const purpose  = (body.purpose  || '').trim();
+    const methodName = (body.method || 'hospital_card').toLowerCase();
+    const note = (body.note || '').trim();
+
+    if (!payDate || !/^\d{4}-\d{2}-\d{2}$/.test(payDate)) return send(400, { ok:false, message:'payDate (YYYY-MM-DD) required' });
+    if (!merchant || !purpose) return send(400, { ok:false, message:'merchant/purpose required' });
+    if (!amount || amount <= 0) return send(400, { ok:false, message:'amount > 0 required' });
+
+    const row = {
+      pay_date: payDate,
+      amount, merchant, purpose,
+      method: methodName,
+      note: note || null,
+      created_by: auth?.sub || null
+    };
+
+    const { data, error } = await supabase
+      .from('expenses')
+      .insert([row])
+      .select('id, pay_date, amount, merchant, purpose, method, note, created_by, created_at')
+      .single();
+
+    if (error) return send(400, { ok:false, message: error.message });
+    return send(200, { ok:true, item: data });
+  }
+
+  if (method === 'PATCH') {
+    const body = safeJson(event.body) || {};
+    const { id } = body;
+    if (!id) return send(400, { ok:false, message:'id required' });
+
+    const updates = {};
+    if (body.payDate)        updates.pay_date = body.payDate;
+    if (body.amount!=null)   updates.amount   = Number(body.amount||0);
+    if (body.merchant!=null) updates.merchant = String(body.merchant||'').trim();
+    if (body.purpose!=null)  updates.purpose  = String(body.purpose||'').trim();
+    if (body.method)         updates.method   = String(body.method||'').toLowerCase();
+    if (body.note!=null)     updates.note     = String(body.note||'').trim();
+
+    const { data, error } = await supabase
+      .from('expenses')
+      .update(updates)
+      .eq('id', id)
+      .select('id, pay_date, amount, merchant, purpose, method, note, created_by, created_at')
+      .single();
+
+    if (error) return send(400, { ok:false, message: error.message });
+    return send(200, { ok:true, item: data });
+  }
+
+  if (method === 'DELETE') {
+    const { id } = safeJson(event.body) || {};
+    if (!id) return send(400, { ok:false, message:'id required' });
+    const { error } = await supabase.from('expenses').delete().eq('id', id);
+    if (error) return send(400, { ok:false, message: error.message });
+    return send(200, { ok:true });
+  }
+
+  return send(405, { ok:false, message:'Method Not Allowed' });
 }
 
   // 라우트 없음
