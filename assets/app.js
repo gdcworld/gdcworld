@@ -426,7 +426,7 @@ window.renderDosu = async function renderDosu(){
         <td style="text-align:right">${fmt(r.visits)}</td>
         <td style="text-align:right">${fmt(r.new)}</td>
         <td style="text-align:right">${fmt(r.revisit)}</td>
-        <td style="text-align:right">${(r.rate||0)}%</td>
+        <td style="text-align:right">${(r.rate||0)}%</td>f
         <td style="text-align:right">${fmt(r.revenue)}</td>`;
       f1.appendChild(tr);
       sVisit+=num(r.visits); sNew+=num(r.new); sRevTot+=num(r.revisit); sRevenue+=num(r.revenue);
@@ -569,9 +569,13 @@ window.bootDosuAddUI = function bootDosuAddUI () {
     const blob = new Blob([csv], { type:'text/csv;charset=utf-8;' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
-    a.download = `dosu-${startEl.value||'start'}_${endEl.value||'end'}.csv`;
-    document.body.appendChild(a); a.click(); a.remove();
-  });
+a.download = `expenses-${m}.csv`;
+document.body.appendChild(a);
+a.click();
+URL.revokeObjectURL(a.href);
+a.remove();
+  }, 50);
+});
 
   document.getElementById('dosuPrint')?.addEventListener('click', ()=>{
     const p = document.querySelector('[data-panel="noncovered-dosu"]');
