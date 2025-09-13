@@ -559,22 +559,20 @@ window.bootDosuAddUI = function bootDosuAddUI () {
 
 
 
-  document.getElementById('dosuExport')?.addEventListener('click', ()=>{
-    const esc = (s='') => `"${String(s).replaceAll('"','""').replace(/\r?\n/g,' ')}"`;
-    const header = ['일자','내원수','신환','재진','재진율','수익(원)'].join(',');
-    const rows = [...document.querySelectorAll('#dosuDaily tbody tr')].map(tr =>
-      [...tr.children].map(td=>td.textContent.trim()).join(',')
-    );
-    const csv = '\uFEFF' + [header, ...rows].join('\r\n');
-    const blob = new Blob([csv], { type:'text/csv;charset=utf-8;' });
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-a.download = `expenses-${m}.csv`;
-document.body.appendChild(a);
-a.click();
-URL.revokeObjectURL(a.href);
-a.remove();
-  }, 50);
+  document.getElementById('dosuExport')?.addEventListener('click', () => {
+  const header = ['일자','내원수','신환','재진','재진율','수익(원)'].join(',');
+  const rows = [...document.querySelectorAll('#dosuDaily tbody tr')].map(tr =>
+    [...tr.children].map(td => td.textContent.trim()).join(',')
+  );
+  const csv  = '\uFEFF' + [header, ...rows].join('\r\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'dosu-daily.csv';
+  document.body.appendChild(a);
+  a.click();
+  URL.revokeObjectURL(a.href);
+  a.remove();
 });
 
   document.getElementById('dosuPrint')?.addEventListener('click', ()=>{
