@@ -362,6 +362,55 @@ window.renderDosu = async function renderDosu(){
     kpiPrev.textContent  = (a.kpi?.previous||0) + '명';
     kpiRe.textContent    = (a.kpi?.revisitRate||0) + '%';
     kpiRev.textContent   = fmt(a.kpi?.revenue||0);
+    
+   // ▶ 기간 텍스트
+{
+  const start = document.getElementById('dosuRangeStart').value;
+  const end   = document.getElementById('dosuRangeEnd').value;
+  const el = document.getElementById('dosuPeriodText');
+  if (el) el.textContent = `${start} ~ ${end}`;
+}
+
+// ▶ 우측 요약 테이블 (기간 내 / 한달전 / 전월 / 대비)
+{
+  const N = x => Number(x||0);
+  const put = (id, v) => { const e = document.getElementById(id); if (e) e.textContent = v; };
+
+  // 기간 내
+  put('dsumCurNew',      `${N(a.kpi?.new)||0}명`);
+  put('dsumCurRe',       `${N(a.kpi?.revisit)||0}명`);
+  put('dsumCurTotal',    `${N(a.kpi?.current)||0}명`);
+  put('dsumCurRate',     `${N(a.kpi?.revisitRate)||0}%`);
+  put('dsumCurRevenue',  `${N(a.kpi?.revenue)||0}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')+'원');
+
+  // 한달전 동일기간 (a.prev 가 없으면 0으로 표기)
+  put('dsumPrevNew',     `${N(a.prev?.new)||0}명`);
+  put('dsumPrevRe',      `${N(a.prev?.revisit)||0}명`);
+  put('dsumPrevTotal',   `${N(a.prev?.current)||0}명`);
+  put('dsumPrevRate',    `${N(a.prev?.revisitRate)||0}%`);
+  put('dsumPrevRevenue', `${N(a.prev?.revenue)||0}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')+'원');
+
+  // 전월 총 현황 (a.prevMonth 가 없으면 0)
+  put('dsumPrevMonthNew',     `${N(a.prevMonth?.new)||0}명`);
+  put('dsumPrevMonthRe',      `${N(a.prevMonth?.revisit)||0}명`);
+  put('dsumPrevMonthTotal',   `${N(a.prevMonth?.current)||0}명`);
+  put('dsumPrevMonthRate',    `${N(a.prevMonth?.revisitRate)||0}%`);
+  put('dsumPrevMonthRevenue', `${N(a.prevMonth?.revenue)||0}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')+'원');
+
+  // 한달전 기간내 대비 (단순 차이)
+  const dNew  = N(a.kpi?.new)        - N(a.prev?.new);
+  const dRe   = N(a.kpi?.revisit)    - N(a.prev?.revisit);
+  const dTot  = N(a.kpi?.current)    - N(a.prev?.current);
+  const dRate = N(a.kpi?.revisitRate)- N(a.prev?.revisitRate);
+  const dRev  = N(a.kpi?.revenue)    - N(a.prev?.revenue);
+
+  const arrow = v => (v>0?'▲':'') + v;
+  put('dsumDeltaNew',     `${arrow(dNew)}명`);
+  put('dsumDeltaRe',      `${arrow(dRe)}명`);
+  put('dsumDeltaTotal',   `${arrow(dTot)}명`);
+  put('dsumDeltaRate',    `${arrow(dRate)}%`);
+  put('dsumDeltaRevenue', `${arrow(dRev)}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')+'원');
+}
 
     // 치료사별
     clear(tbThera);
@@ -433,10 +482,35 @@ window.renderDosu = async function renderDosu(){
     tbDaily.appendChild(f4);
   }
 
-  document.getElementById('dosuReload')?.addEventListener('click', load);
-  startEl.addEventListener('change', load);
-  endEl.addEventListener('change', load);
-  document.getElementById('dosuDoctor')?.addEventListener('change', load);
+ document.getElementById('dosuReload')?.addEventListener('click', load);
+document.getElementById('dosuSearch')?.addEventListener('click', load); // ▶ 검색 버튼
+startEl.addEventListener('change', load);
+endEl.addEventListener('change', load);
+document.getElementById('dosuDoctor')?.addEventListener('change', load);
+
+// ▶ 도수 치료 정보 추가 (임시 프롬프트 → POST)
+//   백엔드가 준비되면 경로만 /dosu/records 로 맞춰서 사용
+document.getElementById('dosuAdd')?.addEventListener('click', async ()=>{
+  try {
+    const date   = prompt('내원일(YYYY-MM-DD)', endEl.value);
+    if (!date) return;
+    const physio = docSel.value || prompt('치료사 ID(또는 선택한 뒤 빈칸)', '');
+    const price  = Number(prompt('금액(원)', '0') || '0');
+    const isNew  = confirm('신환인가요? (확인=예 / 취소=아니오)');
+    const revisit = !isNew;
+
+    await apiRequest('/dosu/records', {
+      method: 'POST',
+      body: { visitDate: date, physioId: physio || null, price, isNew, revisit }
+    });
+
+    alert('등록 완료!');
+    load();
+  } catch (e) {
+    alert('등록 실패: ' + (e?.message || e));
+  }
+});
+
 
   document.getElementById('dosuExport')?.addEventListener('click', ()=>{
     const esc = (s='') => `"${String(s).replaceAll('"','""').replace(/\r?\n/g,' ')}"`;

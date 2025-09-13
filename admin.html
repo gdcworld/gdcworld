@@ -173,19 +173,90 @@
       </section>
 
       <!-- ▼ 비급여치료 하위 패널 -->
-      <section class="panel hidden" data-panel="noncovered-dosu">
-  <header class="panel-head" style="display:flex;align-items:center;gap:10px;margin-bottom:12px;">
-    <h2 class="h1" style="margin:0;">도수 치료 현황</h2>
-    <div class="tools" style="display:flex;gap:8px;align-items:center;margin-left:auto;flex-wrap:wrap;">
-      <input id="dosuRangeStart" type="date">
-      <span style="opacity:.7;">~</span>
-      <input id="dosuRangeEnd" type="date">
-      <select id="dosuDoctor" class="select"><option value="">치료사 전체</option></select>
-      <button id="dosuReload" class="btn">불러오기</button>
-      <button id="dosuExport" class="btn">엑셀(CSV) 다운로드</button>
-      <button id="dosuPrint"  class="btn ghost">인쇄</button>
+<section class="panel hidden" data-panel="noncovered-dosu">
+  <header class="panel-head" style="display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap;">
+  <!-- 왼쪽: 필터/버튼 -->
+  <div class="tools" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+    <select id="dosuDoctor" class="select" style="min-width:110px;">
+      <option value="">치료사 전체</option>
+    </select>
+    <input id="dosuRangeStart" type="date">
+    <span style="opacity:.7;">~</span>
+    <input id="dosuRangeEnd" type="date">
+    <button id="dosuSearch" class="btn">검색</button>
+    <button id="dosuAdd" class="btn">도수 치료 정보 추가</button>
+  </div>
+
+  <!-- 오른쪽: 액션 -->
+  <div style="display:flex;gap:8px;align-items:center;margin-left:auto;flex-wrap:wrap;">
+    <button id="dosuReload" class="btn">불러오기</button>
+    <button id="dosuExport" class="btn">엑셀(CSV) 다운로드</button>
+    <button id="dosuPrint"  class="btn ghost">인쇄</button>
+  </div>
+</header>
+
+<!-- 중앙 타이틀 + 기간 -->
+<div style="display:flex;align-items:flex-start;gap:16px;position:relative;margin-bottom:14px;">
+  <div style="flex:1;text-align:center;">
+    <h2 class="h1" style="margin:8px 0 6px;">구로디지털정형외과 도수 치료 현황</h2>
+    <div style="opacity:.85;">
+      <span id="dosuPeriodText">YYYY-MM-DD ~ YYYY-MM-DD</span>
     </div>
-  </header>
+  </div>
+
+  <!-- 우측 요약 테이블 -->
+  <div class="panel card" style="min-width:520px;max-width:560px;margin-right:4px;">
+    <div class="table-wrap">
+      <table class="table compact" style="font-size:13px;">
+        <thead>
+          <tr>
+            <th style="width:38%"></th>
+            <th style="width:15%">신환</th>
+            <th style="width:15%">재진</th>
+            <th style="width:15%">합계</th>
+            <th style="width:17%">재진율</th>
+            <th style="width:20%">수익</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>기간 내</td>
+            <td id="dsumCurNew">0명</td>
+            <td id="dsumCurRe">0명</td>
+            <td id="dsumCurTotal">0명</td>
+            <td id="dsumCurRate">0%</td>
+            <td id="dsumCurRevenue">0원</td>
+          </tr>
+          <tr>
+            <td>한달전 기간 내</td>
+            <td id="dsumPrevNew">0명</td>
+            <td id="dsumPrevRe">0명</td>
+            <td id="dsumPrevTotal">0명</td>
+            <td id="dsumPrevRate">0%</td>
+            <td id="dsumPrevRevenue">0원</td>
+          </tr>
+          <tr>
+            <td>전월 총 현황</td>
+            <td id="dsumPrevMonthNew">0명</td>
+            <td id="dsumPrevMonthRe">0명</td>
+            <td id="dsumPrevMonthTotal">0명</td>
+            <td id="dsumPrevMonthRate">0%</td>
+            <td id="dsumPrevMonthRevenue">0원</td>
+          </tr>
+          <tr>
+            <td>한달전 기간내 대비</td>
+            <td id="dsumDeltaNew">0명</td>
+            <td id="dsumDeltaRe">0명</td>
+            <td id="dsumDeltaTotal">0명</td>
+            <td id="dsumDeltaRate">0%</td>
+            <td id="dsumDeltaRevenue">0원</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
 
   <!-- KPI -->
   <div class="kpi-wrap" style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:16px;">
