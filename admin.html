@@ -673,9 +673,10 @@ document.addEventListener('DOMContentLoaded', function(){
     }
      if (id === 'expenses' && window.renderExpenses) window.renderExpenses();
       if (id === 'carm' && window.initCarmMonth) window.initCarmMonth();
-    if (id === 'noncovered-dosu' && window.renderDosu) window.renderDosu();
-    if (id === 'noncovered-dosu' && window.bootDosuAddUI) window.bootDosuAddUI();
-  };
+    if (id === 'noncovered-dosu') {window.renderDosu && window.renderDosu();
+     window.bootDosuAddUI && window.bootDosuAddUI();
+   }
+   };
 
   // ☆ 마지막에 한 번만 호출
   applyRoleVisibility(role);
