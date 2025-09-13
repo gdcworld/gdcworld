@@ -518,8 +518,22 @@ window.bootDosuAddUI = function bootDosuAddUI () {
   const show = () => { modal.classList.remove('hidden'); modal.setAttribute('aria-hidden','false'); };
   const hide = () => { modal.classList.add('hidden');    modal.setAttribute('aria-hidden','true'); };
 
-  openBtn.onclick = show;
-  modal.addEventListener('click', (e) => { if (e.target.dataset.close) hide(); });
+if (!openBtn.dataset.bound) {
+  openBtn.dataset.bound = '1';
+  openBtn.addEventListener('click', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    show();             // 모달 열기
+  });
+}
+
+// 모달 배경/닫기 버튼 (중복 방지)
+if (!modal.dataset.bound) {
+  modal.dataset.bound = '1';
+  modal.addEventListener('click', (e) => {
+    if (e.target.dataset.close) hide();
+  });
+}
 
   // 저장
   form.onsubmit = async (e) => {
