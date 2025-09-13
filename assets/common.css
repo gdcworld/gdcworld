@@ -64,4 +64,41 @@
 .subitem.active{ background:#d8edff; border-left-color:#3aa2ff; color:#123; font-weight:700; }
 
 .btn { pointer-events: auto; opacity: 1; }  
-.btn[disabled] { opacity: .5; }           
+.btn[disabled] { opacity: .5; }   
+       
+/* === GDC Modal === */
+.gdc-modal.hidden{ display:none !important; }
+.gdc-modal{ position:fixed; inset:0; z-index:9999; }
+.gdc-modal__backdrop{
+  position:absolute; inset:0; background:rgba(0,0,0,.55);
+  backdrop-filter: blur(2px);
+}
+.gdc-modal__panel{
+  position:relative; width:min(960px, 92vw); max-height:88vh; overflow:auto;
+  margin:40px auto; background:#2f3035; color:#fff; border-radius:16px;
+  box-shadow:0 20px 60px rgba(0,0,0,.5); border:1px solid rgba(255,255,255,.08);
+  padding:18px 18px 12px;
+}
+.gdc-modal__header{ display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; }
+.gdc-modal__header h3{ margin:0; font-size:18px; }
+.gdc-modal__close{
+  background:transparent; border:0; color:#fff; font-size:22px; cursor:pointer; line-height:1;
+}
+.gdc-modal__footer{ display:flex; justify-content:flex-end; gap:8px; margin-top:12px; }
+
+.gdc-form .gdc-grid{
+  display:grid; grid-template-columns: repeat(2, minmax(220px, 1fr)); gap:12px;
+}
+.gdc-field{ display:flex; flex-direction:column; gap:6px; }
+.gdc-label{ font-size:13px; opacity:.9; }
+.gdc-field input[type="text"],
+.gdc-field input[type="date"],
+.gdc-field select{
+  background:#1f2025; color:#fff; border:1px solid #444; border-radius:10px; padding:10px 12px; outline:none;
+}
+.gdc-field input:focus, .gdc-field select:focus{ border-color:var(--gold); box-shadow:0 0 0 4px rgba(227,192,139,.15); }
+.gdc-chipset{ display:flex; flex-wrap:wrap; gap:8px; }
+.gdc-chipset label{
+  display:inline-flex; align-items:center; gap:6px; padding:8px 10px; border-radius:999px;
+  background:#1f2025; border:1px solid #444; font-size:13px; cursor:pointer;
+}

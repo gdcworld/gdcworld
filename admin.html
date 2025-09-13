@@ -180,6 +180,107 @@
     <select id="dosuDoctor" class="select" style="min-width:110px;">
       <option value="">치료사 전체</option>
     </select>
+<!-- ✅ 도수 치료 정보 추가 모달 -->
+<div id="dosuModal" class="gdc-modal hidden" aria-hidden="true">
+  <div class="gdc-modal__backdrop" data-close="1"></div>
+  <div class="gdc-modal__panel" role="dialog" aria-modal="true" aria-labelledby="dosuModalTitle">
+    <header class="gdc-modal__header">
+      <h3 id="dosuModalTitle">도수 치료 정보 추가</h3>
+      <button class="gdc-modal__close" type="button" data-close="1">×</button>
+    </header>
+
+    <form id="dosuForm" class="gdc-form">
+      <div class="gdc-grid">
+        <label class="gdc-field">
+          <span class="gdc-label">작성일</span>
+          <input name="writtenAt" type="date" />
+        </label>
+
+        <label class="gdc-field">
+          <span class="gdc-label">병원</span>
+          <input name="hospital" type="text" value="구로디지털정형외과" placeholder="병원명을 입력하세요" />
+        </label>
+
+        <label class="gdc-field">
+          <span class="gdc-label">물리치료사</span>
+          <select name="physioId" id="dosuPhysioSelect">
+            <option value="">치료사를 선택해주세요</option>
+          </select>
+        </label>
+
+        <label class="gdc-field">
+          <span class="gdc-label">환자</span>
+          <input name="patient" type="text" placeholder="환자명을 입력해주세요" />
+        </label>
+
+        <label class="gdc-field">
+          <span class="gdc-label">진료실</span>
+          <select name="room">
+            <option value="">진료실을 선택해주세요</option>
+            <option>도수실 A</option>
+            <option>도수실 B</option>
+            <option>도수실 C</option>
+          </select>
+        </label>
+
+        <label class="gdc-field">
+          <span class="gdc-label">인센티브</span>
+          <select name="incentive">
+            <option value="">인센티브를 선택해주세요</option>
+            <option value="10">10%</option>
+            <option value="15">15%</option>
+            <option value="25">25%</option>
+          </select>
+        </label>
+
+        <fieldset class="gdc-field">
+          <legend class="gdc-label">방문 타입</legend>
+          <div class="gdc-chipset">
+            <label><input type="radio" name="visitType" value="new" /> 신환</label>
+            <label><input type="radio" name="visitType" value="revisit" /> 재진</label>
+            <label><input type="radio" name="visitType" value="other" /> 기타여부</label>
+          </div>
+        </fieldset>
+
+        <label class="gdc-field">
+          <span class="gdc-label">금액</span>
+          <select name="amount">
+            <option value="">금액을 선택해주세요</option>
+            <option value="30000">30,000</option>
+            <option value="50000">50,000</option>
+            <option value="70000">70,000</option>
+            <option value="100000">100,000</option>
+          </select>
+        </label>
+
+        <fieldset class="gdc-field">
+          <legend class="gdc-label">치료 타입</legend>
+          <div class="gdc-chipset">
+            <label><input type="checkbox" name="treat_only" value="dosu" /> 도수치료만</label>
+            <label><input type="checkbox" name="treat_inj"  value="inj"  /> +주사치료</label>
+            <label><input type="checkbox" name="treat_eswt" value="eswt" /> +충격파치료</label>
+          </div>
+        </fieldset>
+
+        <fieldset class="gdc-field">
+          <legend class="gdc-label">예약 여부</legend>
+          <div class="gdc-chipset">
+            <label><input type="radio" name="reservation" value="reserved" /> 예약</label>
+            <label><input type="radio" name="reservation" value="not_reserved" /> 미예약</label>
+            <label><input type="radio" name="reservation" value="none" /> 체크안함</label>
+          </div>
+        </fieldset>
+      </div>
+
+      <footer class="gdc-modal__footer">
+        <button type="button" class="btn ghost" data-close="1">닫기</button>
+        <button type="submit" class="btn">저장</button>
+      </footer>
+    </form>
+  </div>
+</div>
+
+ 
     <input id="dosuRangeStart" type="date">
     <span style="opacity:.7;">~</span>
     <input id="dosuRangeEnd" type="date">
@@ -573,6 +674,7 @@ document.addEventListener('DOMContentLoaded', function(){
      if (id === 'expenses' && window.renderExpenses) window.renderExpenses();
       if (id === 'carm' && window.initCarmMonth) window.initCarmMonth();
     if (id === 'noncovered-dosu' && window.renderDosu) window.renderDosu();
+    if (id === 'noncovered-dosu' && window.bootDosuAddUI) window.bootDosuAddUI();
   };
 
   // ☆ 마지막에 한 번만 호출

@@ -64,7 +64,7 @@ window.AdminUI = {
 
           if (v === 'partners') renderPartners();
           if (v === 'expenses') renderExpenses();
-         if (v === 'noncovered-dosu') renderDosu();
+         if (v === 'noncovered-dosu') { renderDosu(); bootDosuAddUI(); }
 
           const panel = qs(`[data-panel="${v}"]`);
           if (panel && panel.querySelector('.account-module')) {
@@ -488,28 +488,74 @@ startEl.addEventListener('change', load);
 endEl.addEventListener('change', load);
 document.getElementById('dosuDoctor')?.addEventListener('change', load);
 
-// ▶ 도수 치료 정보 추가 (임시 프롬프트 → POST)
-//   백엔드가 준비되면 경로만 /dosu/records 로 맞춰서 사용
-document.getElementById('dosuAdd')?.addEventListener('click', async ()=>{
-  try {
-    const date   = prompt('내원일(YYYY-MM-DD)', endEl.value);
-    if (!date) return;
-    const physio = docSel.value || prompt('치료사 ID(또는 선택한 뒤 빈칸)', '');
-    const price  = Number(prompt('금액(원)', '0') || '0');
-    const isNew  = confirm('신환인가요? (확인=예 / 취소=아니오)');
-    const revisit = !isNew;
 
-    await apiRequest('/dosu/records', {
-      method: 'POST',
-      body: { visitDate: date, physioId: physio || null, price, isNew, revisit }
-    });
+// ✅ 도수 치료 정보 추가: 모달 부트 함수
+window.bootDosuAddUI = function bootDosuAddUI () {
+  const openBtn = document.getElementById('dosuAdd');     // 기존 버튼 id 그대로 사용
+  const modal   = document.getElementById('dosuModal');   // 1번에서 붙인 모달
+  const form    = document.getElementById('dosuForm');
+  if (!openBtn || !modal || !form) return;
 
-    alert('등록 완료!');
-    load();
-  } catch (e) {
-    alert('등록 실패: ' + (e?.message || e));
-  }
-});
+  // 오늘 날짜 기본값
+  const dateInput = form.querySelector('input[name="writtenAt"]');
+  if (dateInput && !dateInput.value) dateInput.value = new Date().toISOString().slice(0,10);
+
+  // 치료사 목록 주입 (physio 역할 계정)
+  const physioSel = document.getElementById('dosuPhysioSelect');
+  (async () => {
+    try {
+      const j = await apiRequest('/accounts?role=physio'); // admin 권한 필요
+      const items = j.items || [];
+      physioSel.innerHTML = ['<option value="">치료사를 선택해주세요</option>']
+        .concat(items.map(u => `<option value="${u.id}">${u.name || u.email || '치료사'}</option>`))
+        .join('');
+    } catch (e) { console.warn('physio load failed', e); }
+  })();
+
+  const show = () => { modal.classList.remove('hidden'); modal.setAttribute('aria-hidden','false'); };
+  const hide = () => { modal.classList.add('hidden');    modal.setAttribute('aria-hidden','true'); };
+
+  openBtn.onclick = show;
+  modal.addEventListener('click', (e) => { if (e.target.dataset.close) hide(); });
+
+  // 저장
+  form.onsubmit = async (e) => {
+    e.preventDefault();
+    const fd = new FormData(form);
+    const payload = {
+      writtenAt : fd.get('writtenAt') || new Date().toISOString().slice(0,10),
+      hospital  : (fd.get('hospital') || '').trim(),
+      physioId  : fd.get('physioId') || '',
+      patient   : (fd.get('patient') || '').trim(),
+      room      : fd.get('room') || '',
+      incentive : fd.get('incentive') || '',
+      visitType : fd.get('visitType') || '',          // new / revisit / other
+      amount    : Number(fd.get('amount') || 0) || 0,
+      treat     : {                                   // 체크박스 3종
+        only : !!fd.get('treat_only'),
+        inj  : !!fd.get('treat_inj'),
+        eswt : !!fd.get('treat_eswt')
+      },
+      reservation: fd.get('reservation') || 'none'
+    };
+
+    if (!payload.physioId) { alert('치료사를 선택해주세요.'); return; }
+    if (!payload.patient)  { alert('환자명을 입력해주세요.'); return; }
+
+    try {
+      // 백엔드 준비 전 임시 엔드포인트 (필요 시 /api.mjs에 /dosu/visit 구현)
+      await apiRequest('/dosu/records', { method:'POST', body: payload });
+      alert('저장되었습니다.');
+      hide();
+      // 저장 후 화면 갱신
+      if (window.renderDosu) window.renderDosu();
+    } catch (err) {
+      console.error(err);
+      alert('저장 실패: ' + (err?.message || err));
+    }
+  };
+};
+
 
 
   document.getElementById('dosuExport')?.addEventListener('click', ()=>{
