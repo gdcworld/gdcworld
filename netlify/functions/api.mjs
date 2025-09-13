@@ -563,6 +563,45 @@ if (path === '/expenses') {
 
   return send(405, { ok:false, message:'Method Not Allowed' });
 }
+// ───────── 도수치료 (DOSU) 임시 라우트 ─────────
+// GET  /api/dosu/summary?start=YYYY-MM-DD&end=YYYY-MM-DD&physioId=optional
+// GET  /api/dosu/daily?start=YYYY-MM-DD&end=YYYY-MM-DD&physioId=optional
+// POST /api/dosu/records { writtenAt, hospital, physioId, patient, room, incentive, visitType, amount, treat:{only,inj,eswt}, reservation }
+if (path.startsWith('/dosu/')) {
+  const check = requireRole(auth, ['admin','physio','ptadmin']); // 필요 시 역할 조정
+  if (!check.ok) return send(check.status, { ok:false, message: check.message });
+
+  const url = event.rawUrl ? new URL(event.rawUrl) : null;
+  const start = url?.searchParams.get('start') || new Date().toISOString().slice(0,10);
+  const end   = url?.searchParams.get('end')   || start;
+  const physioId = url?.searchParams.get('physioId') || null;
+
+  if (path === '/dosu/summary' && method === 'GET') {
+    const sample = {
+      kpi: { current:0, previous:0, revisitRate:0, revenue:0, new:0, revisit:0 },
+      prev: { new:0, revisit:0, current:0, revisitRate:0, revenue:0 },
+      prevMonth: { new:0, revisit:0, current:0, revisitRate:0, revenue:0 },
+      therapists: [], newDist: [], revisit: []
+    };
+    return send(200, { ok:true, ...sample });
+  }
+
+  if (path === '/dosu/daily' && method === 'GET') {
+    return send(200, { ok:true, items: [] });
+  }
+
+  if (path === '/dosu/records' && method === 'POST') {
+    const body = safeJson(event.body) || {};
+    if (!body.physioId || !body.patient) {
+      return send(400, { ok:false, message:'physioId, patient 필수' });
+    }
+    // TODO: Supabase insert로 교체 예정
+    return send(200, { ok:true, item: body });
+  }
+
+  return send(405, { ok:false, message:'Method Not Allowed' });
+}
+
 
   // 라우트 없음
   return send(404, { ok:false, error:'route_not_found', route:path, path:rawPath });
