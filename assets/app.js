@@ -52,10 +52,11 @@
       .join('');
   }
 
-  /* ============ Admin 초기화 ============ */
-  window.AdminUI = {
-    init() {
-      // 네비 버튼 클릭 -> 패널 전환
+let __navBound = false; // ← 파일 상단 IIFE 내부에 선언
+
+window.AdminUI = {
+  init() {
+    if (!__navBound) {
       qsa('.nav button').forEach(btn => {
         btn.addEventListener('click', () => {
           const v = btn.dataset.view;
@@ -72,14 +73,16 @@
               console.warn('__bootAccountsModules가 로드되지 않았습니다.');
             }
           }
-        });
+        }, { passive:true });
       });
-
-      // 초기 화면: 파트너
-      activate('partners');
-      renderPartners();
+      __navBound = true; // ← 중복 방지
     }
-  };
+
+    // 초기 화면: 파트너
+    activate('partners');
+    renderPartners();
+  }
+};
 })();
 
 
@@ -137,6 +140,44 @@ async function renderExpenses() {
   const escapeHtml = (s='') =>
     String(s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]));
 
+// 작은 디바운스 유틸
+const debounce = (fn, ms=120) => { let t; return (...a)=>{ clearTimeout(t); t=setTimeout(()=>fn(...a), ms); }; };
+
+// DOM 행 생성 (프래그먼트용)
+const buildRow = (it) => {
+  const tr = document.createElement('tr');
+  tr.setAttribute('data-id', it.id);
+
+  const tdDate = document.createElement('td');
+  tdDate.textContent = it.pay_date || '';
+
+  const tdAmt = document.createElement('td');
+  tdAmt.style.textAlign = 'right';
+  tdAmt.textContent = Number(it.amount||0).toLocaleString();
+
+  const tdMerchant = document.createElement('td');
+  tdMerchant.textContent = escapeHtml(it.merchant||'');
+
+  const tdPurpose = document.createElement('td');
+  tdPurpose.textContent = escapeHtml(it.purpose||'');
+
+  const tdOps = document.createElement('td');
+  const btnEdit = document.createElement('button');
+  btnEdit.className = 'btn ghost exp-edit';
+  btnEdit.type = 'button';
+  btnEdit.dataset.id = it.id;
+  btnEdit.textContent = '수정';
+  const btnDel = document.createElement('button');
+  btnDel.className = 'btn ghost exp-del';
+  btnDel.type = 'button';
+  btnDel.dataset.id = it.id;
+  btnDel.textContent = '삭제';
+  tdOps.append(btnEdit, btnDel);
+
+  tr.append(tdDate, tdAmt, tdMerchant, tdPurpose, tdOps);
+  return tr;
+};
+
  // ── 목록 불러오기 ──
 const load = async () => {
   const m = monthInput.value;
@@ -145,19 +186,14 @@ const load = async () => {
   try {
     const j = await apiRequest(`/expenses?month=${encodeURIComponent(m)}&method=hospital_card`);
     lastItems = j.items || [];
-    const rows = (j.items || []).map(it => `
-  <tr data-id="${it.id}">
-    <td>${it.pay_date}</td>
-    <td style="text-align:right;">${Number(it.amount||0).toLocaleString()}</td>
-    <td>${escapeHtml(it.merchant||'')}</td>
-    <td>${escapeHtml(it.purpose||'')}</td>
-    <td>
-      <button class="btn ghost exp-edit" type="button" data-id="${it.id}">수정</button>
-      <button class="btn ghost exp-del"  type="button" data-id="${it.id}">삭제</button>
-    </td>
-  </tr>
-`).join('');
-    tbody.innerHTML = rows || `<tr><td colspan="5" style="text-align:center; padding:18px;">내역 없음</td></tr>`;
+
+    if (lastItems.length) {
+      const frag = document.createDocumentFragment();
+      for (const it of lastItems) frag.appendChild(buildRow(it));
+      tbody.replaceChildren(frag);
+    } else {
+      tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; padding:18px;">내역 없음</td></tr>`;
+    }
     totalEl.textContent = Number(j.total||0).toLocaleString();
   } catch (err) {
     tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; color:#f99; padding:18px;">불러오기 실패</td></tr>`;
@@ -166,20 +202,19 @@ const load = async () => {
 };
 
 // ▼ 월 이동/새로고침
-prevBtn?.addEventListener('click', ()=>{
-  const d = new Date(monthInput.value+'-01');
-  d.setMonth(d.getMonth()-1);
+const shiftMonth = (delta) => {
+  const base = monthInput.value || new Date().toISOString().slice(0,7);
+  const d = new Date(base + '-01');
+  d.setMonth(d.getMonth()+delta);
   monthInput.value = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
   load();
-});
-nextBtn?.addEventListener('click', ()=>{
-  const d = new Date(monthInput.value+'-01');
-  d.setMonth(d.getMonth()+1);
-  monthInput.value = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
-  load();
-});
-reloadBtn?.addEventListener('click', load);
-monthInput.addEventListener('change', load);
+};
+const loadDebounced = debounce(load, 120);
+
+prevBtn?.addEventListener('click', ()=> shiftMonth(-1), { passive:true });
+nextBtn?.addEventListener('click', ()=> shiftMonth(1),  { passive:true });
+reloadBtn?.addEventListener('click', loadDebounced);
+monthInput.addEventListener('change', loadDebounced);
 
 // ▼ 추가(POST)
 form?.addEventListener('submit', async (e)=>{
@@ -240,37 +275,36 @@ table?.addEventListener('click', async (e)=>{
 });
 
 // ▼ CSV 다운로드 (이 핸들러에는 CSV 로직만!)
-exportBtn?.addEventListener('click', ()=>{
-  const m = monthInput.value || 'unknown-month';
-  const rows = Array.isArray(lastItems) ? lastItems : [];
-  if (!rows.length) {
-    alert('내보낼 내역이 없습니다. 먼저 불러오기를 눌러주세요.');
-    return;
-  }
-  const esc = (s='') => `"${String(s).replaceAll('"','""').replace(/\r?\n/g,' ')}"`;
-  const header = ['날짜','금액(원)','상호명','용도','결제수단','비고'];
-  const lines = [header.join(',')];
-  for (const r of rows) {
-    lines.push([
-      r.pay_date || '',
-      Number(r.amount || 0),
-      esc(r.merchant || ''),
-      esc(r.purpose  || ''),
-      esc(r.method   || ''),
-      esc(r.note     || ''),
-    ].join(','));
-  }
-  const total = rows.reduce((s, r)=> s + (Number(r.amount||0) || 0), 0);
-  lines.push(['합계', total, '', '', '', ''].join(','));
+exportBtn?.addEventListener('click', () => {
+  if (!lastItems.length) { alert('내보낼 내역이 없습니다. 먼저 불러오기를 눌러주세요.'); return; }
+  setTimeout(() => {
+    const m = monthInput.value || 'unknown-month';
+    const esc = (s='') => `"${String(s).replaceAll('"','""').replace(/\r?\n/g,' ')}"`;
+    const header = ['날짜','금액(원)','상호명','용도','결제수단','비고'];
+    const lines = [header.join(',')];
 
-  const csv = '\uFEFF' + lines.join('\r\n');
-  const blob = new Blob([csv], { type:'text/csv;charset=utf-8;' });
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = `expenses-${m}.csv`;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
+    for (const r of lastItems) {
+      lines.push([
+        r.pay_date || '',
+        Number(r.amount || 0),
+        esc(r.merchant || ''),
+        esc(r.purpose  || ''),
+        esc(r.method   || ''),
+        esc(r.note     || '')
+      ].join(','));
+    }
+    const total = lastItems.reduce((s,r)=> s + (Number(r.amount||0)||0), 0);
+    lines.push(['합계', total, '', '', '', ''].join(','));
+
+    const csv = '\uFEFF' + lines.join('\r\n');
+    const blob = new Blob([csv], { type:'text/csv;charset=utf-8;' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `expenses-${m}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  }, 0);
 });
 
 // 최초 로드
