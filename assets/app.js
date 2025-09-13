@@ -62,9 +62,12 @@ window.AdminUI = {
           const v = btn.dataset.view;
           activate(v);
 
-          if (v === 'partners') renderPartners();
-          if (v === 'expenses') renderExpenses();
-         if (v === 'noncovered-dosu') { renderDosu(); bootDosuAddUI(); }
+         if (v === 'partners') renderPartners();
+if (v === 'expenses') renderExpenses();
+if (v === 'noncovered-dosu') {
+  renderDosu();
+  window.bootDosuAddUI && window.bootDosuAddUI();
+}
 
           const panel = qs(`[data-panel="${v}"]`);
           if (panel && panel.querySelector('.account-module')) {
@@ -491,8 +494,8 @@ document.getElementById('dosuDoctor')?.addEventListener('change', load);
 
 // ✅ 도수 치료 정보 추가: 모달 부트 함수
 window.bootDosuAddUI = function bootDosuAddUI () {
-  const openBtn = document.getElementById('dosuAdd');     // 기존 버튼 id 그대로 사용
-  const modal   = document.getElementById('dosuModal');   // 1번에서 붙인 모달
+  const openBtn = document.getElementById('dosuAdd');
+  const modal   = document.getElementById('dosuModal');
   const form    = document.getElementById('dosuForm');
   if (!openBtn || !modal || !form) return;
 
@@ -500,7 +503,7 @@ window.bootDosuAddUI = function bootDosuAddUI () {
   const dateInput = form.querySelector('input[name="writtenAt"]');
   if (dateInput && !dateInput.value) dateInput.value = new Date().toISOString().slice(0,10);
 
-  // 치료사 목록 주입 (physio 역할 계정)
+  // 치료사 목록 불러오기 (physio 계정만)
   const physioSel = document.getElementById('dosuPhysioSelect');
   (async () => {
     try {
@@ -529,9 +532,9 @@ window.bootDosuAddUI = function bootDosuAddUI () {
       patient   : (fd.get('patient') || '').trim(),
       room      : fd.get('room') || '',
       incentive : fd.get('incentive') || '',
-      visitType : fd.get('visitType') || '',          // new / revisit / other
+      visitType : fd.get('visitType') || '',
       amount    : Number(fd.get('amount') || 0) || 0,
-      treat     : {                                   // 체크박스 3종
+      treat     : {
         only : !!fd.get('treat_only'),
         inj  : !!fd.get('treat_inj'),
         eswt : !!fd.get('treat_eswt')
@@ -543,11 +546,9 @@ window.bootDosuAddUI = function bootDosuAddUI () {
     if (!payload.patient)  { alert('환자명을 입력해주세요.'); return; }
 
     try {
-      // 백엔드 준비 전 임시 엔드포인트 (필요 시 /api.mjs에 /dosu/visit 구현)
       await apiRequest('/dosu/records', { method:'POST', body: payload });
       alert('저장되었습니다.');
       hide();
-      // 저장 후 화면 갱신
       if (window.renderDosu) window.renderDosu();
     } catch (err) {
       console.error(err);
