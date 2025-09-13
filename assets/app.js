@@ -426,7 +426,7 @@ window.renderDosu = async function renderDosu(){
         <td style="text-align:right">${fmt(r.visits)}</td>
         <td style="text-align:right">${fmt(r.new)}</td>
         <td style="text-align:right">${fmt(r.revisit)}</td>
-        <td style="text-align:right">${(r.rate||0)}%</td>f
+        <td style="text-align:right">${(r.rate||0)}%</td>
         <td style="text-align:right">${fmt(r.revenue)}</td>`;
       f1.appendChild(tr);
       sVisit+=num(r.visits); sNew+=num(r.new); sRevTot+=num(r.revisit); sRevenue+=num(r.revenue);
@@ -523,11 +523,10 @@ if (!openBtn.dataset.bound) {
   openBtn.addEventListener('click', (e) => {
     e.preventDefault();
     e.stopPropagation();
-    show();             // 모달 열기
+    show();
   });
 }
 
-// 모달 배경/닫기 버튼 (중복 방지)
 if (!modal.dataset.bound) {
   modal.dataset.bound = '1';
   modal.addEventListener('click', (e) => {
