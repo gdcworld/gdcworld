@@ -64,6 +64,7 @@ window.AdminUI = {
 
           if (v === 'partners') renderPartners();
           if (v === 'expenses') renderExpenses();
+         if (v === 'noncovered-dosu') renderDosu();
 
           const panel = qs(`[data-panel="${v}"]`);
           if (panel && panel.querySelector('.account-module')) {
@@ -310,3 +311,161 @@ exportBtn?.addEventListener('click', () => {
 // 최초 로드
 load();
 } 
+
+// 도수 치료 패널 렌더러
+window.renderDosu = async function renderDosu(){
+  const startEl = document.getElementById('dosuRangeStart');
+  const endEl   = document.getElementById('dosuRangeEnd');
+  const docSel  = document.getElementById('dosuDoctor');
+  const tbThera = document.querySelector('#dosuByTherapist tbody');
+  const tbNew   = document.querySelector('#dosuNewDist tbody');
+  const tbRe    = document.querySelector('#dosuRevisit tbody');
+  const tbDaily = document.querySelector('#dosuDaily tbody');
+
+  const kpiCur = document.getElementById('dosuKpiCur');
+  const kpiPrev= document.getElementById('dosuKpiPrev');
+  const kpiRe  = document.getElementById('dosuKpiRevisit');
+  const kpiRev = document.getElementById('dosuKpiRevenue');
+
+  const sumVisit = document.getElementById('dosuSumVisit');
+  const sumNew   = document.getElementById('dosuSumNew');
+  const sumRe    = document.getElementById('dosuSumRe');
+  const sumRate  = document.getElementById('dosuSumRate');
+  const sumRev   = document.getElementById('dosuSumRevenue');
+
+  const today = new Date().toISOString().slice(0,10);
+  if (!startEl.value) startEl.value = today;
+  if (!endEl.value)   endEl.value   = today;
+
+  const num = (v)=> Number(v||0);
+  const fmt = (n)=> num(n).toLocaleString();
+  const clear = el => el && (el.innerHTML='');
+
+  // 치료사 목록(필요시 API 교체)
+  try{
+    const j = await apiRequest('/accounts?role=physio');
+    docSel.innerHTML = ['<option value="">치료사 전체</option>']
+      .concat((j.items||[]).map(u=>`<option value="${u.id}">${u.name||'치료사'}</option>`)).join('');
+  }catch{}
+
+  const qs = ()=> new URLSearchParams({
+    start:startEl.value, end:endEl.value, physioId: docSel.value||''
+  }).toString();
+
+  async function load(){
+    // ⚠️ 백엔드 준비되면 엔드포인트만 맞춰주면 됩니다.
+    const a = await apiRequest(`/dosu/summary?${qs()}`); // {kpi, therapists, newDist, revisit}
+    const b = await apiRequest(`/dosu/daily?${qs()}`);   // {items}
+
+    // KPI
+    kpiCur.textContent   = (a.kpi?.current||0) + '명';
+    kpiPrev.textContent  = (a.kpi?.previous||0) + '명';
+    kpiRe.textContent    = (a.kpi?.revisitRate||0) + '%';
+    kpiRev.textContent   = fmt(a.kpi?.revenue||0);
+
+    // 치료사별
+    clear(tbThera);
+    let sVisit=0, sNew=0, sRevTot=0, sRevenue=0;
+    const f1 = document.createDocumentFragment();
+    (a.therapists||[]).forEach(r=>{
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td>${r.name||''}</td>
+        <td style="text-align:right">${fmt(r.visits)}</td>
+        <td style="text-align:right">${fmt(r.new)}</td>
+        <td style="text-align:right">${fmt(r.revisit)}</td>
+        <td style="text-align:right">${(r.rate||0)}%</td>
+        <td style="text-align:right">${fmt(r.revenue)}</td>`;
+      f1.appendChild(tr);
+      sVisit+=num(r.visits); sNew+=num(r.new); sRevTot+=num(r.revisit); sRevenue+=num(r.revenue);
+    });
+    tbThera.appendChild(f1);
+    sumVisit.textContent = fmt(sVisit);
+    sumNew.textContent   = fmt(sNew);
+    sumRe.textContent    = fmt(sRevTot);
+    sumRate.textContent  = (sVisit? Math.round(sRevTot*1000/sVisit)/10 : 0) + '%';
+    sumRev.textContent   = fmt(sRevenue);
+
+    // 신환 분배
+    clear(tbNew);
+    const f2 = document.createDocumentFragment();
+    (a.newDist||[]).forEach(r=>{
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td>${r.name||''}</td>
+        <td style="text-align:right">${fmt(r.p10)}</td>
+        <td style="text-align:right">${fmt(r.p15)}</td>
+        <td style="text-align:right">${fmt(r.p25)}</td>
+        <td style="text-align:right">${fmt(num(r.p10)+num(r.p15)+num(r.p25))}</td>`;
+      f2.appendChild(tr);
+    });
+    tbNew.appendChild(f2);
+
+    // 총 재진
+    clear(tbRe);
+    const f3 = document.createDocumentFragment();
+    (a.revisit||[]).forEach(r=>{
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td>${r.name||''}</td>
+        <td style="text-align:right">${fmt(r.p10)}</td>
+        <td style="text-align:right">${fmt(r.p15)}</td>
+        <td style="text-align:right">${fmt(r.p25)}</td>
+        <td style="text-align:right">${fmt(num(r.p10)+num(r.p15)+num(r.p25))}</td>`;
+      f3.appendChild(tr);
+    });
+    tbRe.appendChild(f3);
+
+    // 일자별
+    clear(tbDaily);
+    const f4 = document.createDocumentFragment();
+    (b.items||[]).forEach(r=>{
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td>${r.date||''}</td>
+        <td style="text-align:right">${fmt(r.visits)}</td>
+        <td style="text-align:right">${fmt(r.new)}</td>
+        <td style="text-align:right">${fmt(r.revisit)}</td>
+        <td style="text-align:right">${(r.rate||0)}%</td>
+        <td style="text-align:right">${fmt(r.revenue)}</td>`;
+      f4.appendChild(tr);
+    });
+    tbDaily.appendChild(f4);
+  }
+
+  document.getElementById('dosuReload')?.addEventListener('click', load);
+  startEl.addEventListener('change', load);
+  endEl.addEventListener('change', load);
+  document.getElementById('dosuDoctor')?.addEventListener('change', load);
+
+  document.getElementById('dosuExport')?.addEventListener('click', ()=>{
+    const esc = (s='') => `"${String(s).replaceAll('"','""').replace(/\r?\n/g,' ')}"`;
+    const header = ['일자','내원수','신환','재진','재진율','수익(원)'].join(',');
+    const rows = [...document.querySelectorAll('#dosuDaily tbody tr')].map(tr =>
+      [...tr.children].map(td=>td.textContent.trim()).join(',')
+    );
+    const csv = '\uFEFF' + [header, ...rows].join('\r\n');
+    const blob = new Blob([csv], { type:'text/csv;charset=utf-8;' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `dosu-${startEl.value||'start'}_${endEl.value||'end'}.csv`;
+    document.body.appendChild(a); a.click(); a.remove();
+  });
+
+  document.getElementById('dosuPrint')?.addEventListener('click', ()=>{
+    const p = document.querySelector('[data-panel="noncovered-dosu"]');
+    const win = window.open('', '_blank');
+    win.document.write('<meta charset="utf-8"><title>도수 치료 현황</title>');
+    win.document.write('<style>body{font-family:sans-serif;padding:16px}table{width:100%;border-collapse:collapse}th,td{border:1px solid #ddd;padding:6px 8px;font-size:12px}h2{margin:0 0 8px}</style>');
+    win.document.write('<h2>도수 치료 현황</h2>');
+    win.document.write(p.querySelector('.kpi-wrap').outerHTML);
+    win.document.write(p.querySelector('#dosuByTherapist').outerHTML);
+    win.document.write(p.querySelector('#dosuNewDist').outerHTML);
+    win.document.write(p.querySelector('#dosuRevisit').outerHTML);
+    win.document.write(p.querySelector('#dosuDaily').outerHTML);
+    win.document.close(); win.focus(); win.print(); win.close();
+  });
+
+  // 최초 로드
+  load();
+};

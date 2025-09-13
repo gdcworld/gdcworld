@@ -173,7 +173,82 @@
       </section>
 
       <!-- ▼ 비급여치료 하위 패널 -->
-      <section class="panel hidden" data-panel="noncovered-dosu"><h2 class="h1">도수 치료</h2>준비 중</section>
+      <section class="panel hidden" data-panel="noncovered-dosu">
+  <header class="panel-head" style="display:flex;align-items:center;gap:10px;margin-bottom:12px;">
+    <h2 class="h1" style="margin:0;">도수 치료 현황</h2>
+    <div class="tools" style="display:flex;gap:8px;align-items:center;margin-left:auto;flex-wrap:wrap;">
+      <input id="dosuRangeStart" type="date">
+      <span style="opacity:.7;">~</span>
+      <input id="dosuRangeEnd" type="date">
+      <select id="dosuDoctor" class="select"><option value="">치료사 전체</option></select>
+      <button id="dosuReload" class="btn">불러오기</button>
+      <button id="dosuExport" class="btn">엑셀(CSV) 다운로드</button>
+      <button id="dosuPrint"  class="btn ghost">인쇄</button>
+    </div>
+  </header>
+
+  <!-- KPI -->
+  <div class="kpi-wrap" style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:16px;">
+    <div class="panel card"><div class="kpi-name">기간 내</div><div id="dosuKpiCur" class="kpi-val">0명</div></div>
+    <div class="panel card"><div class="kpi-name">전월 동일기간</div><div id="dosuKpiPrev" class="kpi-val">0명</div></div>
+    <div class="panel card"><div class="kpi-name">재진율</div><div id="dosuKpiRevisit" class="kpi-val">0%</div></div>
+    <div class="panel card"><div class="kpi-name">수익(원)</div><div id="dosuKpiRevenue" class="kpi-val">0</div></div>
+  </div>
+
+  <!-- 치료사별 매출 -->
+  <div class="panel card">
+    <div class="card-head"><strong>치료사별 매출</strong></div>
+    <div class="table-wrap">
+      <table class="table" id="dosuByTherapist">
+        <thead>
+          <tr><th>치료사</th><th>내원수</th><th>신환</th><th>재진</th><th>재진율</th><th>수익(원)</th></tr>
+        </thead>
+        <tbody></tbody>
+        <tfoot>
+          <tr><th>합계</th><th id="dosuSumVisit">0</th><th id="dosuSumNew">0</th><th id="dosuSumRe">0</th>
+              <th id="dosuSumRate">0%</th><th id="dosuSumRevenue">0</th></tr>
+        </tfoot>
+      </table>
+    </div>
+  </div>
+
+  <!-- 2열: 신환 분배 / 총 재진 -->
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+    <div class="panel card">
+      <div class="card-head"><strong>신환 분배 현황</strong></div>
+      <div class="table-wrap">
+        <table class="table" id="dosuNewDist">
+          <thead><tr><th>치료사</th><th>10만</th><th>15만</th><th>25만</th><th>합계</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="panel card">
+      <div class="card-head"><strong>총 재진 현황</strong></div>
+      <div class="table-wrap">
+        <table class="table" id="dosuRevisit">
+          <thead><tr><th>치료사</th><th>10만</th><th>15만</th><th>25만</th><th>합계</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- 기간별 현황 -->
+  <div class="panel card" style="margin-top:12px;">
+    <div class="card-head"><strong>기간별 현황</strong></div>
+    <div class="table-wrap">
+      <table class="table" id="dosuDaily">
+        <thead>
+          <tr><th>일자</th><th>내원수</th><th>신환</th><th>재진</th><th>재진율</th><th>수익(원)</th></tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
       <section class="panel hidden" data-panel="noncovered-shock"><h2 class="h1">충격파</h2>준비 중</section>
       <section class="panel hidden" data-panel="noncovered-dosu-note"><h2 class="h1">도수치료 상담일지</h2>준비 중</section>
       <section class="panel hidden" data-panel="noncovered-shock-note"><h2 class="h1">충격파 상담일지</h2>준비 중</section>
@@ -426,6 +501,7 @@ document.addEventListener('DOMContentLoaded', function(){
     }
      if (id === 'expenses' && window.renderExpenses) window.renderExpenses();
       if (id === 'carm' && window.initCarmMonth) window.initCarmMonth();
+    if (id === 'noncovered-dosu' && window.renderDosu) window.renderDosu();
   };
 
   // ☆ 마지막에 한 번만 호출
