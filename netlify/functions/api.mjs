@@ -592,9 +592,9 @@ if (path.startsWith('/dosu/')) {
   // ✅ 요약 조회
   if (path === '/dosu/summary' && method === 'GET') {
   let q = supabase.from('dosu_records')
-    .select('*')
+    .select('visit_type, amount') 
     .gte('written_at', start).lte('written_at', end);
-  if (physioId) q = q.eq('physio_id', Number(physioId) || physioId); // ← 타입 캐스팅
+  if (physioId) q = q.eq('physio_id', Number(physioId) || physioId);
   const { data, error } = await q;
     if (error) return send(400, { ok:false, message:error.message });
 
@@ -632,10 +632,11 @@ if (path.startsWith('/dosu/')) {
   });
 
   Object.values(byDate).forEach(v => {
-    v.rate = v.visits ? Math.round((v.revisit * 100) / v.visits) : 0;
-  });
+  v.rate = v.visits ? Math.round((v.revisit * 100) / v.visits) : 0;
+});
 
-  return send(200, { ok:true, items: Object.values(byDate) });
+const items = Object.values(byDate).sort((a,b) => String(a.date).localeCompare(String(b.date)));
+return send(200, { ok:true, items });
 }
 
   // ✅ 기록 추가
