@@ -285,7 +285,11 @@
     <span style="opacity:.7;">~</span>
     <input id="dosuRangeEnd" type="date">
     <button id="dosuSearch" class="btn">검색</button>
-    <button id="dosuAdd" class="btn" type="button">도수 치료 정보 추가</button>
+    <button id="dosuAdd" class="btn" type="button"
+  onclick="(window.bootDosuAddUI&&window.bootDosuAddUI(),(function(m){if(m){m.classList.remove('hidden');m.setAttribute('aria-hidden','false');}})(document.getElementById('dosuModal')))"
+>
+  도수 치료 정보 추가
+</button>
   </div>
 
   <!-- 오른쪽: 액션 -->

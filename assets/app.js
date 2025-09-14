@@ -618,3 +618,18 @@ window.bootDosuAddUI = (function(){
   // 최초 로드
   load();
 };
+
+// === 도수치료 "정보 추가" 버튼 클릭 폴백 ===
+document.addEventListener('click', (e) => {
+  const btn = e.target.closest('#dosuAdd');
+  if (!btn) return;
+
+  // 초기화 루틴이 혹시 아직 안 돌았으면 한 번 더 호출
+  if (window.bootDosuAddUI) window.bootDosuAddUI();
+
+  const modal = document.getElementById('dosuModal');
+  if (!modal) return;
+  modal.classList.remove('hidden');
+  modal.setAttribute('aria-hidden', 'false');
+}, { capture: true });
+
