@@ -336,10 +336,16 @@ load();
 } 
 
 // 도수 치료 패널 렌더러
-window.renderDosu = async function renderDosu(){
+window.renderDosu = async function renderDosu(opts = {}){
   const startEl = document.getElementById('dosuRangeStart');
   const endEl   = document.getElementById('dosuRangeEnd');
   const docSel  = document.getElementById('dosuDoctor');
+    const start = opts.start || startEl.value;
+  const end   = opts.end   || endEl.value;
+  const physioId = opts.physioId || docSel.value || '';
+
+  const qs = ()=> new URLSearchParams({ start, end, physioId }).toString();
+
   const tbThera = document.querySelector('#dosuByTherapist tbody');
   const tbNew   = document.querySelector('#dosuNewDist tbody');
   const tbRe    = document.querySelector('#dosuRevisit tbody');
@@ -365,15 +371,14 @@ window.renderDosu = async function renderDosu(){
   const clear = el => el && (el.innerHTML='');
 
   // 치료사 목록(필요시 API 교체)
-  try{
-    const j = await apiRequest('/accounts?role=physio');
-    docSel.innerHTML = ['<option value="">치료사 전체</option>']
-      .concat((j.items||[]).map(u=>`<option value="${u.id}">${u.name||'치료사'}</option>`)).join('');
-  }catch{}
+try{
+  const prev = physioId || docSel.value;   // ✅ 현재/요청된 선택 보관
+  const j = await apiRequest('/accounts?role=physio');
+  docSel.innerHTML = ['<option value="">치료사 전체</option>']
+    .concat((j.items||[]).map(u=>`<option value="${u.id}">${u.name||'치료사'}</option>`)).join('');
+  if (prev !== undefined) docSel.value = String(prev);  // ✅ 선택 복원
+}catch{}
 
-  const qs = ()=> new URLSearchParams({
-    start:startEl.value, end:endEl.value, physioId: docSel.value||''
-  }).toString();
 
   async function load(){
     // ⚠️ 백엔드 준비되면 엔드포인트만 맞춰주면 됩니다.
