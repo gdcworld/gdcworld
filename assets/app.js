@@ -491,86 +491,99 @@ startEl.addEventListener('change', load);
 endEl.addEventListener('change', load);
 document.getElementById('dosuDoctor')?.addEventListener('change', load);
 
-
 // ✅ 도수 치료 정보 추가: 모달 부트 함수
-window.bootDosuAddUI = function bootDosuAddUI () {
-  const openBtn = document.getElementById('dosuAdd');
-  const modal   = document.getElementById('dosuModal');
-  const form    = document.getElementById('dosuForm');
-  if (!openBtn || !modal || !form) return;
+window.bootDosuAddUI = (function(){
+  let retryTimer = null;
 
-  // 오늘 날짜 기본값
-  const dateInput = form.querySelector('input[name="writtenAt"]');
-  if (dateInput && !dateInput.value) dateInput.value = new Date().toISOString().slice(0,10);
+  function initOnce(){
+    const panel  = document.querySelector('[data-panel="noncovered-dosu"]');
+    const openBtn= document.getElementById('dosuAdd');
+    const modal  = document.getElementById('dosuModal');
+    const form   = document.getElementById('dosuForm');
 
-  // 치료사 목록 불러오기 (physio 계정만)
-  const physioSel = document.getElementById('dosuPhysioSelect');
-  (async () => {
-    try {
-      const j = await apiRequest('/accounts?role=physio'); // admin 권한 필요
-      const items = j.items || [];
-      physioSel.innerHTML = ['<option value="">치료사를 선택해주세요</option>']
-        .concat(items.map(u => `<option value="${u.id}">${u.name || u.email || '치료사'}</option>`))
-        .join('');
-    } catch (e) { console.warn('physio load failed', e); }
-  })();
-
-  const show = () => { modal.classList.remove('hidden'); modal.setAttribute('aria-hidden','false'); };
-  const hide = () => { modal.classList.add('hidden');    modal.setAttribute('aria-hidden','true'); };
-
-if (!openBtn.dataset.bound) {
-  openBtn.dataset.bound = '1';
-  openBtn.addEventListener('click', (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    show();
-  });
-}
-
-if (!modal.dataset.bound) {
-  modal.dataset.bound = '1';
-  modal.addEventListener('click', (e) => {
-    if (e.target.dataset.close) hide();
-  });
-}
-
-  // 저장
-  form.onsubmit = async (e) => {
-    e.preventDefault();
-    const fd = new FormData(form);
-    const payload = {
-      writtenAt : fd.get('writtenAt') || new Date().toISOString().slice(0,10),
-      hospital  : (fd.get('hospital') || '').trim(),
-      physioId  : fd.get('physioId') || '',
-      patient   : (fd.get('patient') || '').trim(),
-      room      : fd.get('room') || '',
-      incentive : fd.get('incentive') || '',
-      visitType : fd.get('visitType') || '',
-      amount    : Number(fd.get('amount') || 0) || 0,
-      treat     : {
-        only : !!fd.get('treat_only'),
-        inj  : !!fd.get('treat_inj'),
-        eswt : !!fd.get('treat_eswt')
-      },
-      reservation: fd.get('reservation') || 'none'
-    };
-
-    if (!payload.physioId) { alert('치료사를 선택해주세요.'); return; }
-    if (!payload.patient)  { alert('환자명을 입력해주세요.'); return; }
-
-    try {
-      await apiRequest('/dosu/records', { method:'POST', body: payload });
-      alert('저장되었습니다.');
-      hide();
-      if (window.renderDosu) window.renderDosu();
-    } catch (err) {
-      console.error(err);
-      alert('저장 실패: ' + (err?.message || err));
+    // 패널/버튼/모달이 아직 안 만들어졌으면 잠깐 뒤에 다시 시도
+    if (!panel || !openBtn || !modal || !form) {
+      clearTimeout(retryTimer);
+      retryTimer = setTimeout(initOnce, 120);
+      return;
     }
+
+    // 오늘 날짜 기본값
+    const dateInput = form.querySelector('input[name="writtenAt"]');
+    if (dateInput && !dateInput.value) {
+      dateInput.value = new Date().toISOString().slice(0,10);
+    }
+
+    // 치료사 목록 주입(physio)
+    const physioSel = document.getElementById('dosuPhysioSelect');
+    if (physioSel && !physioSel.dataset.loaded) {
+      (async () => {
+        try {
+          const j = await apiRequest('/accounts?role=physio'); // admin 권한 필요
+          const items = j.items || [];
+          physioSel.innerHTML = ['<option value="">치료사를 선택해주세요</option>']
+            .concat(items.map(u => `<option value="${u.id}">${u.name || u.email || '치료사'}</option>`))
+            .join('');
+          physioSel.dataset.loaded = '1';
+        } catch(e) { console.warn('physio load failed', e); }
+      })();
+    }
+
+    const show = () => { modal.classList.remove('hidden'); modal.setAttribute('aria-hidden','false'); };
+    const hide = () => { modal.classList.add('hidden');    modal.setAttribute('aria-hidden','true'); };
+
+    // 중복 바인딩 방지
+    if (!openBtn.dataset.bound) {
+      openBtn.dataset.bound = '1';
+      openBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        show();
+      });
+    }
+    if (!modal.dataset.bound) {
+      modal.dataset.bound = '1';
+      modal.addEventListener('click', (e) => {
+        if (e.target?.dataset?.close) hide();
+      });
+    }
+
+    // 저장
+    form.onsubmit = async (e) => {
+      e.preventDefault();
+      const fd = new FormData(form);
+      const payload = {
+        writtenAt : fd.get('writtenAt') || new Date().toISOString().slice(0,10),
+        hospital  : (fd.get('hospital') || '').trim(),
+        physioId  : fd.get('physioId') || '',
+        patient   : (fd.get('patient') || '').trim(),
+        room      : fd.get('room') || '',
+        incentive : fd.get('incentive') || '',
+        visitType : fd.get('visitType') || '',
+        amount    : Number(fd.get('amount') || 0) || 0,
+        treat     : { only:!!fd.get('treat_only'), inj:!!fd.get('treat_inj'), eswt:!!fd.get('treat_eswt') },
+        reservation: fd.get('reservation') || 'none'
+      };
+      if (!payload.physioId) { alert('치료사를 선택해주세요.'); return; }
+      if (!payload.patient)  { alert('환자명을 입력해주세요.'); return; }
+
+      try{
+        await apiRequest('/dosu/records', { method:'POST', body: payload });
+        alert('저장되었습니다.');
+        hide();
+        if (window.renderDosu) window.renderDosu();
+      }catch(err){
+        console.error(err);
+        alert('저장 실패: ' + (err?.message || err));
+      }
+    };
+  }
+
+  return function bootDosuAddUI(){
+    clearTimeout(retryTimer);
+    initOnce();
   };
-};
-
-
+})();
 
   document.getElementById('dosuExport')?.addEventListener('click', () => {
   const header = ['일자','내원수','신환','재진','재진율','수익(원)'].join(',');
