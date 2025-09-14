@@ -96,16 +96,16 @@ async function loadRolesFromDB() {
 }
 
 function normReservation(v) {
-  const s = String(v ?? '').trim();
-  if (['예약','reserved','Y','yes','true','1'].includes(s)) return 'reserved';
-  if (['미예약','not_reserved','N','no','false','0'].includes(s)) return 'not_reserved';
-  return 'none';
+  const s = String(v ?? '').trim().toLowerCase();
+  if (['예약','reserved','y','yes','true','1'].includes(s)) return '예약';
+  if (['미예약','not_reserved','n','no','false','0'].includes(s)) return '미예약';
+  return '체크안함';
 }
 function normVisitType(v) {
-  const s = String(v ?? '').trim();
-  if (['신환','new'].includes(s)) return 'new';
-  if (['재진','revisit'].includes(s)) return 'revisit';
-  return 'other';
+  const s = String(v ?? '').trim().toLowerCase();
+  if (['신환','new'].includes(s)) return '신환';
+  if (['재진','revisit'].includes(s)) return '재진';
+  return '기타여부';
 }
 
 export async function handler(event) {
@@ -638,18 +638,18 @@ if (path.startsWith('/dosu/')) {
   }
 
   const row = {
-    written_at: body.writtenAt,
-    hospital: body.hospital || null,
-    physio_id: body.physioId ? Number(body.physioId) : null, // bigint면 Number 유지
-    patient: (body.patient || '').trim(),
-    room: body.room || null,
-    incentive: body.incentive || null,   // '10%' 등 문자열이면 그대로
-    visit_type: normVisitType(body.visitType),   // ★ 정규화
-    amount: Number(body.amount || 0) || 0,
-    treat: body.treat || {},             // {only,inj,eswt}
-    reservation: normReservation(body.reservation), // ★ 정규화
-    created_by: auth?.sub || null
-  };
+  written_at: body.writtenAt,
+  hospital: body.hospital || null,
+  physio_id: body.physioId ? Number(body.physioId) : null,
+  patient: (body.patient || '').trim(),
+  room: body.room || null,
+  incentive: body.incentive || null,
+  visit_type: normVisitType(body.visitType),     // ← 한글 반환
+  amount: Number(body.amount || 0) || 0,
+  treat: body.treat || {},
+  reservation: normReservation(body.reservation), // ← 한글 반환
+  created_by: auth?.sub || null
+};
 
   const { data, error } = await supabase
     .from('dosu_records')
