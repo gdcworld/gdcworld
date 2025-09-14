@@ -341,14 +341,34 @@ window.renderDosu = async function renderDosu(opts = {}){
   const endEl   = document.getElementById('dosuRangeEnd');
   const docSel  = document.getElementById('dosuDoctor');
     let lastQueryKey = '';
-  const getParams = () => ({
-  start:    opts.start    ?? startEl.value,
-  end:      opts.end      ?? endEl.value,
-  physioId: opts.physioId ?? (docSel.value || '')
-});
+  const todayISO = () => new Date().toISOString().slice(0,10);
+const normDate = (s) => {
+  const m = String(s || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return todayISO();
+  const yr = Number(m[1]);
+  if (yr < 1900 || yr > 2100) return todayISO();
+  return `${m[1]}-${m[2]}-${m[3]}`;
+};
+const normUuid = (s) => {
+  const v = String(s || '').trim();
+  return (!v || v.toLowerCase() === 'nan') ? '' : v;
+};
+window.__dosu_normDate = normDate;
+window.__dosu_normUuid = normUuid;
+
+const getParams = () => {
+  const start    = normDate(opts.start    ?? startEl.value);
+  const end      = normDate(opts.end      ?? endEl.value);
+  const physioId = normUuid(opts.physioId ?? (docSel.value || ''));
+  return { start, end, physioId };
+};
+
+// ✅ 빈 physioId는 파라미터 자체를 제외해 서버 uuid 캐스팅 에러 방지
 const qs = () => {
   const { start, end, physioId } = getParams();
-  return new URLSearchParams({ start, end, physioId }).toString();
+  const u = new URLSearchParams({ start, end });
+  if (physioId) u.set('physioId', physioId);
+  return u.toString();
 };
 
   const tbThera = document.querySelector('#dosuByTherapist tbody');
@@ -770,39 +790,48 @@ document.querySelectorAll('#dosuFrom, #dosuTo').forEach(el => el.style.zIndex = 
   doctor && doctor.addEventListener('change', unlockDates);
  
   try { searchBtn.replaceWith(searchBtn.cloneNode(true)); searchBtn = ($('#dosuSearch') || Array.from(document.querySelectorAll('button')).find(b => /검색/.test(b.textContent||''))); } catch {}
-  if (!searchBtn) return;
+   if (!searchBtn) return;
+
+  // ✅ renderDosu에서 노출한 전역(util) 우선 사용, 없으면 로컬 폴백
+  const normDate = window.__dosu_normDate || ((s) => {
+    const m = String(s || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (!m) return new Date().toISOString().slice(0,10);
+    const yr = Number(m[1]);
+    if (yr < 1900 || yr > 2100) return new Date().toISOString().slice(0,10);
+    return `${m[1]}-${m[2]}-${m[3]}`;
+  });
+  const normUuid = window.__dosu_normUuid || ((s) => {
+    const v = String(s || '').trim();
+    return (!v || v.toLowerCase() === 'nan') ? '' : v;
+  });
 
   searchBtn.addEventListener('click', (e) => {
     e.preventDefault();
 
+    const start    = normDate((fromEl.value || '').trim());
+    const end      = normDate((toEl.value   || '').trim());
+    const physioId = normUuid(doctor ? (doctor.value || '') : '');
 
-    const start = (fromEl.value || '').trim();
-    const end   = (toEl.value || '').trim();
-    const physioId = doctor ? (doctor.value || '').trim() : '';
+  const periodText = document.getElementById('dosuPeriodText');
+  if (periodText && start && end) {
+    periodText.textContent = `${start} ~ ${end}`;
+  }
 
-
-    const periodText = document.getElementById('dosuPeriodText');
-    if (periodText && start && end) {
-      periodText.textContent = `${start} ~ ${end}`;
-    }
-
-
-    if (window.renderDosu) {
-      window.renderDosu({ start, end, physioId });
-    } else if (window.loadDosuSummary) {
-      window.loadDosuSummary({ start, end, physioId });
-    } else {
-
-      const qs = (o)=>Object.entries(o).filter(([,v])=>v!=null&&v!=='').map(([k,v])=>`${k}=${encodeURIComponent(v)}`).join('&');
-      const q = qs({ start, end, physioId });
-      Promise.all([
-        fetch(`/api/dosu/summary?${q}`).then(r=>r.json()).catch(()=>({})),
-        fetch(`/api/dosu/daily?${q}`).then(r=>r.json()).catch(()=>({}))
-      ]).then(([s,d])=>{
-
-        console.log('dosu summary', s, 'dosu daily', d);
-        // TODO: 필요 시 DOM 반영
-      });
-    }
-  });
+  if (window.renderDosu) {
+    window.renderDosu({ start, end, physioId });
+  } else if (window.loadDosuSummary) {
+    window.loadDosuSummary({ start, end, physioId });
+  } else {
+    const qs = (o)=>Object.entries(o)
+      .filter(([,v])=>v!=null && v!=='')
+      .map(([k,v])=>`${k}=${encodeURIComponent(v)}`).join('&');
+    const q = qs({ start, end, physioId });   // ✅ 빈 physioId는 제외됨
+    Promise.all([
+      fetch(`/api/dosu/summary?${q}`).then(r=>r.json()).catch(()=>({})),
+      fetch(`/api/dosu/daily?${q}`).then(r=>r.json()).catch(()=>({}))
+    ]).then(([s,d])=>{
+      console.log('dosu summary', s, 'dosu daily', d);
+    });
+  }
+});
 })();
