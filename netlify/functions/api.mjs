@@ -95,6 +95,19 @@ async function loadRolesFromDB() {
   return __rolesCache;
 }
 
+function normReservation(v) {
+  const s = String(v ?? '').trim();
+  if (['예약','reserved','Y','yes','true','1'].includes(s)) return 'reserved';
+  if (['미예약','not_reserved','N','no','false','0'].includes(s)) return 'not_reserved';
+  return 'none';
+}
+function normVisitType(v) {
+  const s = String(v ?? '').trim();
+  if (['신환','new'].includes(s)) return 'new';
+  if (['재진','revisit'].includes(s)) return 'revisit';
+  return 'other';
+}
+
 export async function handler(event) {
   if (event.httpMethod === 'OPTIONS') return send(204, {});
 
@@ -619,32 +632,34 @@ if (path.startsWith('/dosu/')) {
 
   // ✅ 기록 추가
   if (path === '/dosu/records' && method === 'POST') {
-    const body = safeJson(event.body) || {};
-    if (!body.physioId || !body.patient) {
-      return send(400, { ok:false, message:'physioId, patient 필수' });
-    }
+  const body = safeJson(event.body) || {};
+  if (!body.physioId || !body.patient) {
+    return send(400, { ok:false, message:'physioId, patient 필수' });
+  }
 
-    const { data, error } = await supabase
+  const row = {
+    written_at: body.writtenAt,
+    hospital: body.hospital || null,
+    physio_id: body.physioId ? Number(body.physioId) : null, // bigint면 Number 유지
+    patient: (body.patient || '').trim(),
+    room: body.room || null,
+    incentive: body.incentive || null,   // '10%' 등 문자열이면 그대로
+    visit_type: normVisitType(body.visitType),   // ★ 정규화
+    amount: Number(body.amount || 0) || 0,
+    treat: body.treat || {},             // {only,inj,eswt}
+    reservation: normReservation(body.reservation), // ★ 정규화
+    created_by: auth?.sub || null
+  };
+
+  const { data, error } = await supabase
     .from('dosu_records')
-    .insert([{
-      written_at: body.writtenAt,
-      hospital: body.hospital,
-      physio_id: body.physioId,
-      patient: body.patient,
-      room: body.room,
-      incentive: body.incentive,
-      visit_type: body.visitType,
-      amount: body.amount,
-      treat: body.treat,
-      reservation: body.reservation,
-      created_by: auth?.sub || null   // ★ 이 값이 들어가므로 DB에도 컬럼이 필요
-    }])
+    .insert([row])
     .select()
     .single();
 
-    if (error) return send(400, { ok:false, message:error.message });
-    return send(200, { ok:true, item:data });
-  }
+  if (error) return send(400, { ok:false, message:error.message });
+  return send(200, { ok:true, item:data });
+}
 
   return send(405, { ok:false, message:'Method Not Allowed' });
 }
