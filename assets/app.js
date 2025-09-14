@@ -341,15 +341,11 @@ window.renderDosu = async function renderDosu(opts = {}){
   const endEl   = document.getElementById('dosuRangeEnd');
   const docSel  = document.getElementById('dosuDoctor');
     let lastQueryKey = '';
-    const getParams = () => ({
-  start:    (opts.start    ?? startEl.value),
-  end:      (opts.end      ?? endEl.value),
-  physioId: (opts.physioId ?? (docSel.value || ''))
-});
-const qs = () => {
-  const { start, end, physioId } = getParams();
-  return new URLSearchParams({ start, end, physioId }).toString();
-};
+    const start = opts.start || startEl.value;
+  const end   = opts.end   || endEl.value;
+  const physioId = opts.physioId || docSel.value || '';
+
+  const qs = ()=> new URLSearchParams({ start, end, physioId }).toString();
 
   const tbThera = document.querySelector('#dosuByTherapist tbody');
   const tbNew   = document.querySelector('#dosuNewDist tbody');
@@ -385,98 +381,71 @@ try{
 }catch{}
 
 
-  async function load () {
-  // ── 1) 최신 요청키 생성 (입력창의 '현재 값'으로 생성)
-  const qkey = `${startEl.value}|${endEl.value}|${docSel.value || ''}`;
+  async function load(){
+  // ✅ 현재 요청 키
+ const qkey = `${startEl.value}|${endEl.value}|${docSel.value||''}`;
   lastQueryKey = qkey;
 
-  // ── 2) API 호출
-  let a = {}, b = {};
-  try { a = await apiRequest(`/dosu/summary?${qs()}`); } catch (e) { a = {}; console.warn('dosu/summary', e); }
-  try { b = await apiRequest(`/dosu/daily?${qs()}`);   } catch (e) { b = {}; console.warn('dosu/daily',   e); }
+  const a = await apiRequest(`/dosu/summary?${qs()}`);
+  const b = await apiRequest(`/dosu/daily?${qs()}`);
 
-  // ── 3) 최신 요청 아니면 무시
+  // ✅ 최신 요청이 아니면 무시
   if (lastQueryKey !== qkey) return;
 
-  // ── 4) 화면 초기화 (이게 없어서 이전 날짜 행이 남았던 것)
-  if (tbThera) tbThera.innerHTML = '';
-  if (tbNew)   tbNew.innerHTML   = '';
-  if (tbRe)    tbRe.innerHTML    = '';
-  if (tbDaily) tbDaily.innerHTML = '';
+    // KPI
+    kpiCur.textContent   = (a.kpi?.current||0) + '명';
+    kpiPrev.textContent  = (a.kpi?.previous||0) + '명';
+    kpiRe.textContent    = (a.kpi?.revisitRate||0) + '%';
+    kpiRev.textContent   = fmt(a.kpi?.revenue||0);
+    
+(function(){
+  const N   = (x)=> Number(x||0);
+  const fmt = (n)=> N(n).toLocaleString();
 
-  if (sumVisit) sumVisit.textContent = '0';
-  if (sumNew)   sumNew.textContent   = '0';
-  if (sumRe)    sumRe.textContent    = '0';
-  if (sumRate)  sumRate.textContent  = '0%';
-  if (sumRev)   sumRev.textContent   = '0';
+  // 요약 데이터
+  const cur     = N(a.kpi?.current);      // 기간 내 내원수
+  const revenue = N(a.kpi?.revenue);      // 기간 내 매출
+  const newCnt  = N(a.kpi?.new);          // 신환 수
+  const reCnt   = N(a.kpi?.revisit);      // 재진 수
 
-  if (kpiCur)   kpiCur.textContent   = '0명';
-  if (kpiPrev)  kpiPrev.textContent  = '0명';
-  if (kpiRe)    kpiRe.textContent    = '0%';
-  if (kpiRev)   kpiRev.textContent   = '0';
-
-  // ── 5) 중앙 기간 텍스트
-  {
-    const start = startEl.value;
-    const end   = endEl.value;
-    const el    = document.getElementById('dosuPeriodText');
-    if (el) el.textContent = `${start} ~ ${end}`;
+  // 1) 1인당 평균 금액
+  const avg = cur ? Math.round(revenue / cur) : 0;
+  const avgEl  = document.getElementById('kpiAvg');
+  const avgBox = document.getElementById('kpiAvgCard');
+  if (avgEl && avgBox) {
+    if (avg > 0) { avgEl.textContent = fmt(avg) + '원'; avgBox.style.display = ''; }
+    else { avgBox.style.display = 'none'; }
   }
 
-  // ── 6) KPI (상단 4칸)
-  const N = x => Number(x || 0);
-  const fmt = n => N(n).toLocaleString();
+  // 2) 신환 수
+  const newEl  = document.getElementById('kpiNewCnt');
+  const newBox = document.getElementById('kpiNewCntCard');
+  if (newEl && newBox) {
+    if (newCnt >= 0) { newEl.textContent = fmt(newCnt) + '명'; newBox.style.display = ''; }
+    else { newBox.style.display = 'none'; }
+  }
 
-  if (kpiCur)  kpiCur.textContent  = `${N(a?.kpi?.current)||0}명`;
-  if (kpiPrev) kpiPrev.textContent = `${N(a?.kpi?.previous)||0}명`;
-  if (kpiRe)   kpiRe.textContent   = `${N(a?.kpi?.revisitRate)||0}%`;
-  if (kpiRev)  kpiRev.textContent  = fmt(a?.kpi?.revenue || 0);
+  // 3) 재진 수
+  const reEl  = document.getElementById('kpiReCnt');
+  const reBox = document.getElementById('kpiReCntCard');
+  if (reEl && reBox) {
+    if (reCnt >= 0) { reEl.textContent = fmt(reCnt) + '명'; reBox.style.display = ''; }
+    else { reBox.style.display = 'none'; }
+  }
 
-  // (선택 KPI 카드들 쓰는 경우 유지)
-  (function () {
-    const cur     = N(a?.kpi?.current);
-    const revenue = N(a?.kpi?.revenue);
-    const newCnt  = N(a?.kpi?.new);
-    const reCnt   = N(a?.kpi?.revisit);
-
-    // 1) 1인당 평균
-    const avg = cur ? Math.round(revenue / cur) : 0;
-    const avgEl  = document.getElementById('kpiAvg');
-    const avgBox = document.getElementById('kpiAvgCard');
-    if (avgEl && avgBox) {
-      if (avg > 0) { avgEl.textContent = fmt(avg) + '원'; avgBox.style.display = ''; }
-      else { avgBox.style.display = 'none'; }
+  // 4) TOP 치료사(내원수 기준)
+  const top = (a.therapists||[]).slice().sort((x,y)=> N(y.visits)-N(x.visits))[0];
+  const topEl  = document.getElementById('kpiTopThera');
+  const topBox = document.getElementById('kpiTopTheraCard');
+  if (topEl && topBox) {
+    if (top && (N(top.visits) > 0)) {
+      topEl.textContent = `${top.name||'치료사'} · ${fmt(top.visits)}명`;
+      topBox.style.display = '';
+    } else {
+      topBox.style.display = 'none';
     }
-
-    // 2) 신환 수
-    const newEl  = document.getElementById('kpiNewCnt');
-    const newBox = document.getElementById('kpiNewCntCard');
-    if (newEl && newBox) {
-      if (newCnt >= 0) { newEl.textContent = fmt(newCnt) + '명'; newBox.style.display = ''; }
-      else { newBox.style.display = 'none'; }
-    }
-
-    // 3) 재진 수
-    const reEl  = document.getElementById('kpiReCnt');
-    const reBox = document.getElementById('kpiReCntCard');
-    if (reEl && reBox) {
-      if (reCnt >= 0) { reEl.textContent = fmt(reCnt) + '명'; reBox.style.display = ''; }
-      else { reBox.style.display = 'none'; }
-    }
-
-    // 4) TOP 치료사(선택)
-    const top = (a?.therapists || []).slice().sort((x, y) => N(y.visits) - N(x.visits))[0];
-    const topEl  = document.getElementById('kpiTopThera');
-    const topBox = document.getElementById('kpiTopTheraCard');
-    if (topEl && topBox) {
-      if (top && (N(top.visits) > 0)) {
-        topEl.textContent = `${top.name || '치료사'} · ${fmt(top.visits)}명`;
-        topBox.style.display = '';
-      } else {
-        topBox.style.display = 'none';
-      }
-    }
-  })();
+  }
+})();
 
    // ▶ 기간 텍스트
 {
@@ -488,69 +457,43 @@ try{
 
 // ▶ 우측 요약 테이블 (기간 내 / 한달전 / 전월 / 대비)
 {
-   const put = (id, v) => { const e = document.getElementById(id); if (e) e.textContent = v; };
+  const N = x => Number(x||0);
+  const put = (id, v) => { const e = document.getElementById(id); if (e) e.textContent = v; };
 
   // 기간 내
-  put('dsumCurNew',      `${N(a?.kpi?.new)||0}명`);
-  put('dsumCurRe',       `${N(a?.kpi?.revisit)||0}명`);
-  put('dsumCurTotal',    `${N(a?.kpi?.current)||0}명`);
-  put('dsumCurRate',     `${N(a?.kpi?.revisitRate)||0}%`);
-  put('dsumCurRevenue',  `${fmt(a?.kpi?.revenue||0)}원`);
+  put('dsumCurNew',      `${N(a.kpi?.new)||0}명`);
+  put('dsumCurRe',       `${N(a.kpi?.revisit)||0}명`);
+  put('dsumCurTotal',    `${N(a.kpi?.current)||0}명`);
+  put('dsumCurRate',     `${N(a.kpi?.revisitRate)||0}%`);
+  put('dsumCurRevenue',  `${N(a.kpi?.revenue)||0}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')+'원');
 
-  // 한달전 동일기간
-  put('dsumPrevNew',     `${N(a?.prev?.new)||0}명`);
-  put('dsumPrevRe',      `${N(a?.prev?.revisit)||0}명`);
-  put('dsumPrevTotal',   `${N(a?.prev?.current)||0}명`);
-  put('dsumPrevRate',    `${N(a?.prev?.revisitRate)||0}%`);
-  put('dsumPrevRevenue', `${fmt(a?.prev?.revenue||0)}원`);
+  // 한달전 동일기간 (a.prev 가 없으면 0으로 표기)
+  put('dsumPrevNew',     `${N(a.prev?.new)||0}명`);
+  put('dsumPrevRe',      `${N(a.prev?.revisit)||0}명`);
+  put('dsumPrevTotal',   `${N(a.prev?.current)||0}명`);
+  put('dsumPrevRate',    `${N(a.prev?.revisitRate)||0}%`);
+  put('dsumPrevRevenue', `${N(a.prev?.revenue)||0}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')+'원');
 
-  // 전월 총 현황
-  put('dsumPrevMonthNew',     `${N(a?.prevMonth?.new)||0}명`);
-  put('dsumPrevMonthRe',      `${N(a?.prevMonth?.revisit)||0}명`);
-  put('dsumPrevMonthTotal',   `${N(a?.prevMonth?.current)||0}명`);
-  put('dsumPrevMonthRate',    `${N(a?.prevMonth?.revisitRate)||0}%`);
-  put('dsumPrevMonthRevenue', `${fmt(a?.prevMonth?.revenue||0)}원`);
+  // 전월 총 현황 (a.prevMonth 가 없으면 0)
+  put('dsumPrevMonthNew',     `${N(a.prevMonth?.new)||0}명`);
+  put('dsumPrevMonthRe',      `${N(a.prevMonth?.revisit)||0}명`);
+  put('dsumPrevMonthTotal',   `${N(a.prevMonth?.current)||0}명`);
+  put('dsumPrevMonthRate',    `${N(a.prevMonth?.revisitRate)||0}%`);
+  put('dsumPrevMonthRevenue', `${N(a.prevMonth?.revenue)||0}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')+'원');
 
-  // 한달전 기간내 대비 (증감)
-  put('dsumDeltaNew',     `${N(a?.delta?.new)||0}명`);
-  put('dsumDeltaRe',      `${N(a?.delta?.revisit)||0}명`);
-  put('dsumDeltaTotal',   `${N(a?.delta?.current)||0}명`);
-  put('dsumDeltaRate',    `${N(a?.delta?.revisitRate)||0}%`);
-  put('dsumDeltaRevenue', `${fmt(a?.delta?.revenue||0)}원`);
+  // 한달전 기간내 대비 (단순 차이)
+  const dNew  = N(a.kpi?.new)        - N(a.prev?.new);
+  const dRe   = N(a.kpi?.revisit)    - N(a.prev?.revisit);
+  const dTot  = N(a.kpi?.current)    - N(a.prev?.current);
+  const dRate = N(a.kpi?.revisitRate)- N(a.prev?.revisitRate);
+  const dRev  = N(a.kpi?.revenue)    - N(a.prev?.revenue);
 
-  // ── 8) 기간별 현황 표(b.items) + 합계 갱신
-  let totalVisit = 0, totalNew = 0, totalRe = 0, totalRev = 0;
-  if (Array.isArray(b?.items) && b.items.length) {
-    const frag = document.createDocumentFragment();
-    for (const d of b.items) {
-      const v = N(d.visits), n = N(d.new), r = N(d.revisit), rev = N(d.revenue);
-      totalVisit += v; totalNew += n; totalRe += r; totalRev += rev;
-
-      const tr = document.createElement('tr');
-      tr.innerHTML = `
-        <td>${d.date || ''}</td>
-        <td>${v}</td>
-        <td>${n}</td>
-        <td>${r}</td>
-        <td>${N(d.revisitRate || (v ? Math.round((r / v) * 100) : 0))}%</td>
-        <td>${fmt(rev)}원</td>
-      `;
-      frag.appendChild(tr);
-    }
-    tbDaily?.appendChild(frag);
-  } else {
-    tbDaily && (tbDaily.innerHTML = '<tr><td colspan="6">데이터 없음</td></tr>');
-  }
-
-  // 합계 행/요약
-  if (sumVisit) sumVisit.textContent = `${totalVisit}`;
-  if (sumNew)   sumNew.textContent   = `${totalNew}`;
-  if (sumRe)    sumRe.textContent    = `${totalRe}`;
-  if (sumRate)  sumRate.textContent  = `${totalVisit ? Math.round((totalRe / totalVisit) * 100) : 0}%`;
-  if (sumRev)   sumRev.textContent   = fmt(totalRev);
-
-  // ── 9) (필요 시) 치료사별/신환분배/총재진 표도 같은 방식으로 채우면 됨
-  // 현재 API 구조(a.therapists 등)가 안정화되면 여기에 추가.
+  const arrow = v => (v>0?'▲':'') + v;
+  put('dsumDeltaNew',     `${arrow(dNew)}명`);
+  put('dsumDeltaRe',      `${arrow(dRe)}명`);
+  put('dsumDeltaTotal',   `${arrow(dTot)}명`);
+  put('dsumDeltaRate',    `${arrow(dRate)}%`);
+  put('dsumDeltaRevenue', `${arrow(dRev)}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')+'원');
 }
 
     // 치료사별
