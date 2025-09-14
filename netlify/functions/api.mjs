@@ -625,22 +625,22 @@ if (path.startsWith('/dosu/')) {
     }
 
     const { data, error } = await supabase
-      .from('dosu_records')
-      .insert([{
-        written_at: body.writtenAt,
-        hospital: body.hospital,
-        physio_id: body.physioId,
-        patient: body.patient,
-        room: body.room,
-        incentive: body.incentive,
-        visit_type: body.visitType,
-        amount: body.amount,
-        treat: body.treat,
-        reservation: body.reservation,
-        created_by: auth?.sub || null
-      }])
-      .select()
-      .single();
+    .from('dosu_records')
+    .insert([{
+      written_at: body.writtenAt,
+      hospital: body.hospital,
+      physio_id: body.physioId,
+      patient: body.patient,
+      room: body.room,
+      incentive: body.incentive,
+      visit_type: body.visitType,
+      amount: body.amount,
+      treat: body.treat,
+      reservation: body.reservation,
+      created_by: auth?.sub || null   // ★ 이 값이 들어가므로 DB에도 컬럼이 필요
+    }])
+    .select()
+    .single();
 
     if (error) return send(400, { ok:false, message:error.message });
     return send(200, { ok:true, item:data });
