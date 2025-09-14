@@ -89,6 +89,26 @@ if (v === 'noncovered-dosu') {
 };
 })();
 
+function syncDosuKpisFromSummary(){
+  const txt = (id)=> (document.getElementById(id)?.textContent || '').trim();
+
+  // '0명' → 숫자, '0원' → 숫자
+  const toNum = (s) => Number(String(s).replace(/[^\d.-]/g,'') || 0);
+
+  const curTotal   = toNum(txt('dsumCurTotal'));     // 예: "1명"
+  const prevTotal  = toNum(txt('dsumPrevTotal'));
+  const revisitPct = txt('dsumCurRate') || '0%';     // 예: "0%"
+  const revenue    = toNum(txt('dsumCurRevenue'));   // 예: "30,000원"
+
+  const el = (id)=> document.getElementById(id);
+  if (el('dosuKpiCur'))      el('dosuKpiCur').textContent      = `${curTotal}명`;
+  if (el('dosuKpiPrev'))     el('dosuKpiPrev').textContent     = `${prevTotal}명`;
+  if (el('dosuKpiRevisit'))  el('dosuKpiRevisit').textContent  = revisitPct;
+  if (el('dosuKpiRevenue'))  el('dosuKpiRevenue').textContent  = revenue.toLocaleString();
+}
+
+// ② renderDosu() 맨 끝에 호출
+
 
 // ---- 공용 API 헬퍼 (모든 엔드포인트용) ----
 async function apiRequest(path, opts = {}) {

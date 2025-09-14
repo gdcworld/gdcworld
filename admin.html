@@ -362,14 +362,17 @@
   </div>
 </div>
 
-
-  <!-- KPI -->
-  <div class="kpi-wrap" style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:16px;">
-    <div class="panel card"><div class="kpi-name">기간 내</div><div id="dosuKpiCur" class="kpi-val">0명</div></div>
-    <div class="panel card"><div class="kpi-name">전월 동일기간</div><div id="dosuKpiPrev" class="kpi-val">0명</div></div>
-    <div class="panel card"><div class="kpi-name">재진율</div><div id="dosuKpiRevisit" class="kpi-val">0%</div></div>
-    <div class="panel card"><div class="kpi-name">수익(원)</div><div id="dosuKpiRevenue" class="kpi-val">0</div></div>
-  </div>
+<!-- KPI (추가) -->
+<div class="kpi-wrap" style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:16px;">
+  <div class="panel card"><div class="kpi-name">기간 내</div><div id="dosuKpiCur" class="kpi-val">0명</div></div>
+  <div class="panel card"><div class="kpi-name">전월 동일기간</div><div id="dosuKpiPrev" class="kpi-val">0명</div></div>
+  <div class="panel card"><div class="kpi-name">재진율</div><div id="dosuKpiRevisit" class="kpi-val">0%</div></div>
+  <div class="panel card"><div class="kpi-name">수익(원)</div><div id="dosuKpiRevenue" class="kpi-val">0</div></div>
+</div>
+<style>
+  .kpi-name{opacity:.85;font-size:13px;margin-bottom:4px}
+  .kpi-val{font-size:22px;font-weight:800}
+</style>
 
   <!-- 치료사별 매출 -->
   <div class="panel card">
