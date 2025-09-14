@@ -568,7 +568,7 @@ if (path === '/expenses') {
 // GET  /api/dosu/daily?start=YYYY-MM-DD&end=YYYY-MM-DD&physioId=optional
 // POST /api/dosu/records { writtenAt, hospital, physioId, patient, room, incentive, visitType, amount, treat:{only,inj,eswt}, reservation }
 if (path.startsWith('/dosu/')) {
-  const check = requireRole(auth, ['admin','physio','ptadmin']); // 필요 시 역할 조정
+  const check = requireRole(auth, ['admin','physio','ptadmin']);
   if (!check.ok) return send(check.status, { ok:false, message: check.message });
 
   const url = event.rawUrl ? new URL(event.rawUrl) : null;
@@ -576,27 +576,74 @@ if (path.startsWith('/dosu/')) {
   const end   = url?.searchParams.get('end')   || start;
   const physioId = url?.searchParams.get('physioId') || null;
 
+  // ✅ 요약 조회
   if (path === '/dosu/summary' && method === 'GET') {
-    const sample = {
-      kpi: { current:0, previous:0, revisitRate:0, revenue:0, new:0, revisit:0 },
-      prev: { new:0, revisit:0, current:0, revisitRate:0, revenue:0 },
-      prevMonth: { new:0, revisit:0, current:0, revisitRate:0, revenue:0 },
-      therapists: [], newDist: [], revisit: []
+    let q = supabase.from('dosu_records')
+      .select('*')
+      .gte('written_at', start).lte('written_at', end);
+    if (physioId) q = q.eq('physio_id', physioId);
+    const { data, error } = await q;
+    if (error) return send(400, { ok:false, message:error.message });
+
+    const kpi = {
+      current: data.length,
+      new: data.filter(r=>r.visit_type==='신환').length,
+      revisit: data.filter(r=>r.visit_type==='재진').length,
+      revisitRate: Math.round(data.filter(r=>r.visit_type==='재진').length * 100 / (data.length||1)),
+      revenue: data.reduce((s,r)=>s+Number(r.amount||0),0)
     };
-    return send(200, { ok:true, ...sample });
+
+    return send(200, { ok:true, kpi, therapists:[], newDist:[], revisit:[] });
   }
 
+  // ✅ 일별 조회
   if (path === '/dosu/daily' && method === 'GET') {
-    return send(200, { ok:true, items: [] });
+    const { data, error } = await supabase
+      .from('dosu_records')
+      .select('written_at, visit_type, amount')
+      .gte('written_at', start).lte('written_at', end);
+    if (error) return send(400, { ok:false, message:error.message });
+
+    const byDate = {};
+    (data||[]).forEach(r=>{
+      const d = r.written_at;
+      if (!byDate[d]) byDate[d] = { date:d, visits:0, new:0, revisit:0, revenue:0 };
+      byDate[d].visits++;
+      if (r.visit_type==='신환') byDate[d].new++;
+      if (r.visit_type==='재진') byDate[d].revisit++;
+      byDate[d].revenue += Number(r.amount||0);
+    });
+
+    return send(200, { ok:true, items:Object.values(byDate) });
   }
 
+  // ✅ 기록 추가
   if (path === '/dosu/records' && method === 'POST') {
     const body = safeJson(event.body) || {};
     if (!body.physioId || !body.patient) {
       return send(400, { ok:false, message:'physioId, patient 필수' });
     }
-    // TODO: Supabase insert로 교체 예정
-    return send(200, { ok:true, item: body });
+
+    const { data, error } = await supabase
+      .from('dosu_records')
+      .insert([{
+        written_at: body.writtenAt,
+        hospital: body.hospital,
+        physio_id: body.physioId,
+        patient: body.patient,
+        room: body.room,
+        incentive: body.incentive,
+        visit_type: body.visitType,
+        amount: body.amount,
+        treat: body.treat,
+        reservation: body.reservation,
+        created_by: auth?.sub || null
+      }])
+      .select()
+      .single();
+
+    if (error) return send(400, { ok:false, message:error.message });
+    return send(200, { ok:true, item:data });
   }
 
   return send(405, { ok:false, message:'Method Not Allowed' });
