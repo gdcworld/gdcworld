@@ -366,6 +366,55 @@ window.renderDosu = async function renderDosu(){
     kpiRe.textContent    = (a.kpi?.revisitRate||0) + '%';
     kpiRev.textContent   = fmt(a.kpi?.revenue||0);
     
+(function(){
+  const N   = (x)=> Number(x||0);
+  const fmt = (n)=> N(n).toLocaleString();
+
+  // 요약 데이터
+  const cur     = N(a.kpi?.current);      // 기간 내 내원수
+  const revenue = N(a.kpi?.revenue);      // 기간 내 매출
+  const newCnt  = N(a.kpi?.new);          // 신환 수
+  const reCnt   = N(a.kpi?.revisit);      // 재진 수
+
+  // 1) 1인당 평균 금액
+  const avg = cur ? Math.round(revenue / cur) : 0;
+  const avgEl  = document.getElementById('kpiAvg');
+  const avgBox = document.getElementById('kpiAvgCard');
+  if (avgEl && avgBox) {
+    if (avg > 0) { avgEl.textContent = fmt(avg) + '원'; avgBox.style.display = ''; }
+    else { avgBox.style.display = 'none'; }
+  }
+
+  // 2) 신환 수
+  const newEl  = document.getElementById('kpiNewCnt');
+  const newBox = document.getElementById('kpiNewCntCard');
+  if (newEl && newBox) {
+    if (newCnt >= 0) { newEl.textContent = fmt(newCnt) + '명'; newBox.style.display = ''; }
+    else { newBox.style.display = 'none'; }
+  }
+
+  // 3) 재진 수
+  const reEl  = document.getElementById('kpiReCnt');
+  const reBox = document.getElementById('kpiReCntCard');
+  if (reEl && reBox) {
+    if (reCnt >= 0) { reEl.textContent = fmt(reCnt) + '명'; reBox.style.display = ''; }
+    else { reBox.style.display = 'none'; }
+  }
+
+  // 4) TOP 치료사(내원수 기준)
+  const top = (a.therapists||[]).slice().sort((x,y)=> N(y.visits)-N(x.visits))[0];
+  const topEl  = document.getElementById('kpiTopThera');
+  const topBox = document.getElementById('kpiTopTheraCard');
+  if (topEl && topBox) {
+    if (top && (N(top.visits) > 0)) {
+      topEl.textContent = `${top.name||'치료사'} · ${fmt(top.visits)}명`;
+      topBox.style.display = '';
+    } else {
+      topBox.style.display = 'none';
+    }
+  }
+})();
+
    // ▶ 기간 텍스트
 {
   const start = document.getElementById('dosuRangeStart').value;
