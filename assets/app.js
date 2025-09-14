@@ -702,3 +702,26 @@ document.addEventListener('click', (e) => {
   modal.setAttribute('aria-hidden', 'false');
 }, { capture: true });
 
+document.querySelectorAll('#dosuFrom, #dosuTo').forEach(el => el.style.zIndex = '5');
+
+// ✅ 치료사 선택해도 날짜 입력 잠금 해제
+(function fixDosuDateLock(){
+  const doctor = document.getElementById('dosuDoctor');     // 치료사 셀렉트
+  const fromEl = document.getElementById('dosuRangeStart'); // 시작일
+  const toEl   = document.getElementById('dosuRangeEnd');   // 종료일
+  if (!doctor || !fromEl || !toEl) return;
+
+  const unlockDates = () => {
+    fromEl.disabled = false;  toEl.disabled = false;
+    fromEl.readOnly = false;  toEl.readOnly = false;
+    [fromEl, toEl].forEach(el => {
+      el.style.pointerEvents = 'auto';
+      el.classList.remove('disabled');
+    });
+  };
+
+  // 최초 1회
+  unlockDates();
+  // 치료사 변경 시마다 잠금 해제
+  doctor.addEventListener('change', unlockDates);
+})();
