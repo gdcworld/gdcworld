@@ -725,3 +725,65 @@ document.querySelectorAll('#dosuFrom, #dosuTo').forEach(el => el.style.zIndex = 
   // 치료사 변경 시마다 잠금 해제
   doctor.addEventListener('change', unlockDates);
 })();
+
+
+(function patchDosuSearch(){
+  const $ = (sel) => document.querySelector(sel);
+  const doctor = $('#dosuDoctor');
+
+  const fromEl = $('#dosuRangeStart') || $('#dosuFrom');
+  const toEl   = $('#dosuRangeEnd')   || $('#dosuTo');
+
+  let searchBtn = $('#dosuSearch') || Array.from(document.querySelectorAll('button'))
+    .find(b => /검색/.test(b.textContent||''));
+
+  if (!fromEl || !toEl || !searchBtn) return; 
+
+  const unlockDates = () => {
+    [fromEl, toEl].forEach(el => {
+      el.disabled = false;
+      el.readOnly = false;
+      el.style.pointerEvents = 'auto';
+      el.classList && el.classList.remove('disabled');
+    });
+  };
+  unlockDates();
+  doctor && doctor.addEventListener('change', unlockDates);
+ 
+  try { searchBtn.replaceWith(searchBtn.cloneNode(true)); searchBtn = ($('#dosuSearch') || Array.from(document.querySelectorAll('button')).find(b => /검색/.test(b.textContent||''))); } catch {}
+  if (!searchBtn) return;
+
+  searchBtn.addEventListener('click', (e) => {
+    e.preventDefault();
+
+
+    const start = (fromEl.value || '').trim();
+    const end   = (toEl.value || '').trim();
+    const physioId = doctor ? (doctor.value || '').trim() : '';
+
+
+    const periodText = document.getElementById('dosuPeriodText');
+    if (periodText && start && end) {
+      periodText.textContent = `${start} ~ ${end}`;
+    }
+
+
+    if (window.renderDosu) {
+      window.renderDosu({ start, end, physioId });
+    } else if (window.loadDosuSummary) {
+      window.loadDosuSummary({ start, end, physioId });
+    } else {
+
+      const qs = (o)=>Object.entries(o).filter(([,v])=>v!=null&&v!=='').map(([k,v])=>`${k}=${encodeURIComponent(v)}`).join('&');
+      const q = qs({ start, end, physioId });
+      Promise.all([
+        fetch(`/api/dosu/summary?${q}`).then(r=>r.json()).catch(()=>({})),
+        fetch(`/api/dosu/daily?${q}`).then(r=>r.json()).catch(()=>({}))
+      ]).then(([s,d])=>{
+
+        console.log('dosu summary', s, 'dosu daily', d);
+        // TODO: 필요 시 DOM 반영
+      });
+    }
+  });
+})();
