@@ -340,6 +340,7 @@ window.renderDosu = async function renderDosu(opts = {}){
   const startEl = document.getElementById('dosuRangeStart');
   const endEl   = document.getElementById('dosuRangeEnd');
   const docSel  = document.getElementById('dosuDoctor');
+    let lastQueryKey = '';
     const start = opts.start || startEl.value;
   const end   = opts.end   || endEl.value;
   const physioId = opts.physioId || docSel.value || '';
@@ -381,9 +382,15 @@ try{
 
 
   async function load(){
-    // ⚠️ 백엔드 준비되면 엔드포인트만 맞춰주면 됩니다.
-    const a = await apiRequest(`/dosu/summary?${qs()}`); // {kpi, therapists, newDist, revisit}
-    const b = await apiRequest(`/dosu/daily?${qs()}`);   // {items}
+  // ✅ 현재 요청 키
+ const qkey = `${startEl.value}|${endEl.value}|${docSel.value||''}`;
+  lastQueryKey = qkey;
+
+  const a = await apiRequest(`/dosu/summary?${qs()}`);
+  const b = await apiRequest(`/dosu/daily?${qs()}`);
+
+  // ✅ 최신 요청이 아니면 무시
+  if (lastQueryKey !== qkey) return;
 
     // KPI
     kpiCur.textContent   = (a.kpi?.current||0) + '명';
@@ -561,9 +568,12 @@ tbDaily.appendChild(f4);
 
  document.getElementById('dosuReload')?.addEventListener('click', load);
 document.getElementById('dosuSearch')?.addEventListener('click', load); // ▶ 검색 버튼
-startEl.addEventListener('change', load);
-endEl.addEventListener('change', load);
-document.getElementById('dosuDoctor')?.addEventListener('change', load);
+const debounce = (fn, ms=150) => { let t; return (...a)=>{ clearTimeout(t); t=setTimeout(()=>fn(...a), ms); }; };
+const loadDebounced = debounce(load, 150);
+
+startEl.addEventListener('change', loadDebounced);
+endEl.addEventListener('change', loadDebounced);
+document.getElementById('dosuDoctor')?.addEventListener('change', loadDebounced);
 
 // ✅ 도수 치료 정보 추가: 모달 부트 함수
 window.bootDosuAddUI = (function(){
@@ -689,7 +699,6 @@ window.bootDosuAddUI = (function(){
     win.document.close(); win.focus(); win.print(); win.close();
   });
 
-  // 최초 로드
   load();
 };
 
