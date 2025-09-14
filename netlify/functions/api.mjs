@@ -594,7 +594,7 @@ if (path.startsWith('/dosu/')) {
   let q = supabase.from('dosu_records')
     .select('visit_type, amount') 
     .gte('written_at', start).lte('written_at', end);
-  if (physioId) q = q.eq('physio_id', Number(physioId) || physioId);
+  if (physioId) q = q.eq('physio_id', Number(physioId));
   const { data, error } = await q;
     if (error) return send(400, { ok:false, message:error.message });
 
@@ -616,7 +616,7 @@ if (path.startsWith('/dosu/')) {
     .select('written_at, visit_type, amount')
     .gte('written_at', start).lte('written_at', end);
 
-  if (physioId) q = q.eq('physio_id', Number(physioId) || physioId); // ← 필터 적용
+ if (physioId) q = q.eq('physio_id', Number(physioId));
 
   const { data, error } = await q;
   if (error) return send(400, { ok:false, message:error.message });
