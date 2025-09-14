@@ -341,11 +341,15 @@ window.renderDosu = async function renderDosu(opts = {}){
   const endEl   = document.getElementById('dosuRangeEnd');
   const docSel  = document.getElementById('dosuDoctor');
     let lastQueryKey = '';
-    const start = opts.start || startEl.value;
-  const end   = opts.end   || endEl.value;
-  const physioId = opts.physioId || docSel.value || '';
-
-  const qs = ()=> new URLSearchParams({ start, end, physioId }).toString();
+  const getParams = () => ({
+  start:    opts.start    ?? startEl.value,
+  end:      opts.end      ?? endEl.value,
+  physioId: opts.physioId ?? (docSel.value || '')
+});
+const qs = () => {
+  const { start, end, physioId } = getParams();
+  return new URLSearchParams({ start, end, physioId }).toString();
+};
 
   const tbThera = document.querySelector('#dosuByTherapist tbody');
   const tbNew   = document.querySelector('#dosuNewDist tbody');
@@ -373,23 +377,21 @@ window.renderDosu = async function renderDosu(opts = {}){
 
   // 치료사 목록(필요시 API 교체)
 try{
-  const prev = physioId || docSel.value;   // ✅ 현재/요청된 선택 보관
-  const j = await apiRequest('/accounts?role=physio');
+  const prev = getParams().physioId || docSel.value; // ✅ 현재/요청된 선택 보관
+ const j = await apiRequest('/accounts?role=physio');
   docSel.innerHTML = ['<option value="">치료사 전체</option>']
     .concat((j.items||[]).map(u=>`<option value="${u.id}">${u.name||'치료사'}</option>`)).join('');
   if (prev !== undefined) docSel.value = String(prev);  // ✅ 선택 복원
 }catch{}
 
 
-  async function load(){
-  // ✅ 현재 요청 키
- const qkey = `${startEl.value}|${endEl.value}|${docSel.value||''}`;
+ async function load(){
+  const { start, end, physioId } = getParams();
+  const qkey = `${start}|${end}|${physioId}`;
   lastQueryKey = qkey;
 
   const a = await apiRequest(`/dosu/summary?${qs()}`);
   const b = await apiRequest(`/dosu/daily?${qs()}`);
-
-  // ✅ 최신 요청이 아니면 무시
   if (lastQueryKey !== qkey) return;
 
     // KPI
@@ -571,9 +573,12 @@ document.getElementById('dosuSearch')?.addEventListener('click', load); // ▶ �
 const debounce = (fn, ms=150) => { let t; return (...a)=>{ clearTimeout(t); t=setTimeout(()=>fn(...a), ms); }; };
 const loadDebounced = debounce(load, 150);
 
-startEl.addEventListener('change', loadDebounced);
-endEl.addEventListener('change', loadDebounced);
-document.getElementById('dosuDoctor')?.addEventListener('change', loadDebounced);
+if (!startEl.dataset.bound) {
+  startEl.addEventListener('change', loadDebounced);
+  endEl.addEventListener('change', loadDebounced);
+  document.getElementById('dosuDoctor')?.addEventListener('change', loadDebounced);
+  startEl.dataset.bound = '1';
+}
 
 // ✅ 도수 치료 정보 추가: 모달 부트 함수
 window.bootDosuAddUI = (function(){
