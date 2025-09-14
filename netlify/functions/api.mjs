@@ -591,11 +591,11 @@ if (path.startsWith('/dosu/')) {
 
   // ✅ 요약 조회
   if (path === '/dosu/summary' && method === 'GET') {
-    let q = supabase.from('dosu_records')
-      .select('*')
-      .gte('written_at', start).lte('written_at', end);
-    if (physioId) q = q.eq('physio_id', physioId);
-    const { data, error } = await q;
+  let q = supabase.from('dosu_records')
+    .select('*')
+    .gte('written_at', start).lte('written_at', end);
+  if (physioId) q = q.eq('physio_id', Number(physioId) || physioId); // ← 타입 캐스팅
+  const { data, error } = await q;
     if (error) return send(400, { ok:false, message:error.message });
 
     const kpi = {
@@ -611,24 +611,32 @@ if (path.startsWith('/dosu/')) {
 
   // ✅ 일별 조회
   if (path === '/dosu/daily' && method === 'GET') {
-    const { data, error } = await supabase
-      .from('dosu_records')
-      .select('written_at, visit_type, amount')
-      .gte('written_at', start).lte('written_at', end);
-    if (error) return send(400, { ok:false, message:error.message });
+  let q = supabase
+    .from('dosu_records')
+    .select('written_at, visit_type, amount')
+    .gte('written_at', start).lte('written_at', end);
 
-    const byDate = {};
-    (data||[]).forEach(r=>{
-      const d = r.written_at;
-      if (!byDate[d]) byDate[d] = { date:d, visits:0, new:0, revisit:0, revenue:0 };
-      byDate[d].visits++;
-      if (r.visit_type==='신환') byDate[d].new++;
-      if (r.visit_type==='재진') byDate[d].revisit++;
-      byDate[d].revenue += Number(r.amount||0);
-    });
+  if (physioId) q = q.eq('physio_id', Number(physioId) || physioId); // ← 필터 적용
 
-    return send(200, { ok:true, items:Object.values(byDate) });
-  }
+  const { data, error } = await q;
+  if (error) return send(400, { ok:false, message:error.message });
+
+  const byDate = {};
+  (data||[]).forEach(r => {
+    const d = r.written_at;
+    if (!byDate[d]) byDate[d] = { date:d, visits:0, new:0, revisit:0, revenue:0, rate:0 };
+    byDate[d].visits++;
+    if (r.visit_type === '신환')   byDate[d].new++;
+    if (r.visit_type === '재진')   byDate[d].revisit++;
+    byDate[d].revenue += Number(r.amount || 0);
+  });
+
+  Object.values(byDate).forEach(v => {
+    v.rate = v.visits ? Math.round((v.revisit * 100) / v.visits) : 0;
+  });
+
+  return send(200, { ok:true, items: Object.values(byDate) });
+}
 
   // ✅ 기록 추가
   if (path === '/dosu/records' && method === 'POST') {
