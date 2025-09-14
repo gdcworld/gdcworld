@@ -544,11 +544,11 @@ const f4 = document.createDocumentFragment();
   const tr = document.createElement('tr');
   tr.innerHTML = `
     <td>${r.date||''}</td>                       <!-- 일자 -->
-    <td style="text-align:right">${fmt(r.visits)}</td>   <!-- 내원수 -->
-    <td style="text-align:right">${fmt(r.new)}</td>      <!-- 신환 -->
-    <td style="text-align:right">${fmt(r.revisit)}</td>  <!-- 재진 -->
-    <td style="text-align:right">${(r.rate||0)}%</td>    <!-- 재진율 -->
-    <td style="text-align:right">${fmt(r.revenue)}</td>`;<!-- 수익 -->
+    <td style="text-align:left">${fmt(r.visits)}</td>   <!-- 내원수 -->
+    <td style="text-align:left">${fmt(r.new)}</td>      <!-- 신환 -->
+    <td style="text-align:left">${fmt(r.revisit)}</td>  <!-- 재진 -->
+    <td style="text-align:left">${(r.rate||0)}%</td>    <!-- 재진율 -->
+    <td style="text-align:left">${fmt(r.revenue)}</td>`;<!-- 수익 -->
   f4.appendChild(tr);
 });
 tbDaily.appendChild(f4);
