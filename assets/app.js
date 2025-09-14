@@ -341,35 +341,11 @@ window.renderDosu = async function renderDosu(opts = {}){
   const endEl   = document.getElementById('dosuRangeEnd');
   const docSel  = document.getElementById('dosuDoctor');
     let lastQueryKey = '';
-  const todayISO = () => new Date().toISOString().slice(0,10);
-const normDate = (s) => {
-  const m = String(s || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
-  if (!m) return todayISO();
-  const yr = Number(m[1]);
-  if (yr < 1900 || yr > 2100) return todayISO();
-  return `${m[1]}-${m[2]}-${m[3]}`;
-};
-const normUuid = (s) => {
-  const v = String(s || '').trim();
-  return (!v || v.toLowerCase() === 'nan') ? '' : v;
-};
-window.__dosu_normDate = normDate;
-window.__dosu_normUuid = normUuid;
+    const start = opts.start || startEl.value;
+  const end   = opts.end   || endEl.value;
+  const physioId = opts.physioId || docSel.value || '';
 
-const getParams = () => {
-  const start    = normDate(opts.start    ?? startEl.value);
-  const end      = normDate(opts.end      ?? endEl.value);
-  const physioId = normUuid(opts.physioId ?? (docSel.value || ''));
-  return { start, end, physioId };
-};
-
-// ✅ 빈 physioId는 파라미터 자체를 제외해 서버 uuid 캐스팅 에러 방지
-const qs = () => {
-  const { start, end, physioId } = getParams();
-  const u = new URLSearchParams({ start, end });
-  if (physioId) u.set('physioId', physioId);
-  return u.toString();
-};
+  const qs = ()=> new URLSearchParams({ start, end, physioId }).toString();
 
   const tbThera = document.querySelector('#dosuByTherapist tbody');
   const tbNew   = document.querySelector('#dosuNewDist tbody');
@@ -397,21 +373,23 @@ const qs = () => {
 
   // 치료사 목록(필요시 API 교체)
 try{
-  const prev = getParams().physioId || docSel.value; // ✅ 현재/요청된 선택 보관
- const j = await apiRequest('/accounts?role=physio');
+  const prev = physioId || docSel.value;   // ✅ 현재/요청된 선택 보관
+  const j = await apiRequest('/accounts?role=physio');
   docSel.innerHTML = ['<option value="">치료사 전체</option>']
     .concat((j.items||[]).map(u=>`<option value="${u.id}">${u.name||'치료사'}</option>`)).join('');
   if (prev !== undefined) docSel.value = String(prev);  // ✅ 선택 복원
 }catch{}
 
 
- async function load(){
-  const { start, end, physioId } = getParams();
-  const qkey = `${start}|${end}|${physioId}`;
+  async function load(){
+  // ✅ 현재 요청 키
+ const qkey = `${startEl.value}|${endEl.value}|${docSel.value||''}`;
   lastQueryKey = qkey;
 
   const a = await apiRequest(`/dosu/summary?${qs()}`);
   const b = await apiRequest(`/dosu/daily?${qs()}`);
+
+  // ✅ 최신 요청이 아니면 무시
   if (lastQueryKey !== qkey) return;
 
     // KPI
@@ -593,12 +571,9 @@ document.getElementById('dosuSearch')?.addEventListener('click', load); // ▶ �
 const debounce = (fn, ms=150) => { let t; return (...a)=>{ clearTimeout(t); t=setTimeout(()=>fn(...a), ms); }; };
 const loadDebounced = debounce(load, 150);
 
-if (!startEl.dataset.bound) {
-  startEl.addEventListener('change', loadDebounced);
-  endEl.addEventListener('change', loadDebounced);
-  document.getElementById('dosuDoctor')?.addEventListener('change', loadDebounced);
-  startEl.dataset.bound = '1';
-}
+startEl.addEventListener('change', loadDebounced);
+endEl.addEventListener('change', loadDebounced);
+document.getElementById('dosuDoctor')?.addEventListener('change', loadDebounced);
 
 // ✅ 도수 치료 정보 추가: 모달 부트 함수
 window.bootDosuAddUI = (function(){
@@ -790,48 +765,39 @@ document.querySelectorAll('#dosuFrom, #dosuTo').forEach(el => el.style.zIndex = 
   doctor && doctor.addEventListener('change', unlockDates);
  
   try { searchBtn.replaceWith(searchBtn.cloneNode(true)); searchBtn = ($('#dosuSearch') || Array.from(document.querySelectorAll('button')).find(b => /검색/.test(b.textContent||''))); } catch {}
-   if (!searchBtn) return;
-
-  // ✅ renderDosu에서 노출한 전역(util) 우선 사용, 없으면 로컬 폴백
-  const normDate = window.__dosu_normDate || ((s) => {
-    const m = String(s || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
-    if (!m) return new Date().toISOString().slice(0,10);
-    const yr = Number(m[1]);
-    if (yr < 1900 || yr > 2100) return new Date().toISOString().slice(0,10);
-    return `${m[1]}-${m[2]}-${m[3]}`;
-  });
-  const normUuid = window.__dosu_normUuid || ((s) => {
-    const v = String(s || '').trim();
-    return (!v || v.toLowerCase() === 'nan') ? '' : v;
-  });
+  if (!searchBtn) return;
 
   searchBtn.addEventListener('click', (e) => {
     e.preventDefault();
 
-    const start    = normDate((fromEl.value || '').trim());
-    const end      = normDate((toEl.value   || '').trim());
-    const physioId = normUuid(doctor ? (doctor.value || '') : '');
 
-  const periodText = document.getElementById('dosuPeriodText');
-  if (periodText && start && end) {
-    periodText.textContent = `${start} ~ ${end}`;
-  }
+    const start = (fromEl.value || '').trim();
+    const end   = (toEl.value || '').trim();
+    const physioId = doctor ? (doctor.value || '').trim() : '';
 
-  if (window.renderDosu) {
-    window.renderDosu({ start, end, physioId });
-  } else if (window.loadDosuSummary) {
-    window.loadDosuSummary({ start, end, physioId });
-  } else {
-    const qs = (o)=>Object.entries(o)
-      .filter(([,v])=>v!=null && v!=='')
-      .map(([k,v])=>`${k}=${encodeURIComponent(v)}`).join('&');
-    const q = qs({ start, end, physioId });   // ✅ 빈 physioId는 제외됨
-    Promise.all([
-      fetch(`/api/dosu/summary?${q}`).then(r=>r.json()).catch(()=>({})),
-      fetch(`/api/dosu/daily?${q}`).then(r=>r.json()).catch(()=>({}))
-    ]).then(([s,d])=>{
-      console.log('dosu summary', s, 'dosu daily', d);
-    });
-  }
-});
+
+    const periodText = document.getElementById('dosuPeriodText');
+    if (periodText && start && end) {
+      periodText.textContent = `${start} ~ ${end}`;
+    }
+
+
+    if (window.renderDosu) {
+      window.renderDosu({ start, end, physioId });
+    } else if (window.loadDosuSummary) {
+      window.loadDosuSummary({ start, end, physioId });
+    } else {
+
+      const qs = (o)=>Object.entries(o).filter(([,v])=>v!=null&&v!=='').map(([k,v])=>`${k}=${encodeURIComponent(v)}`).join('&');
+      const q = qs({ start, end, physioId });
+      Promise.all([
+        fetch(`/api/dosu/summary?${q}`).then(r=>r.json()).catch(()=>({})),
+        fetch(`/api/dosu/daily?${q}`).then(r=>r.json()).catch(()=>({}))
+      ]).then(([s,d])=>{
+
+        console.log('dosu summary', s, 'dosu daily', d);
+        // TODO: 필요 시 DOM 반영
+      });
+    }
+  });
 })();
