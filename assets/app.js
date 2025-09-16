@@ -353,11 +353,11 @@ window.renderDosu = async function renderDosu(opts = {}){
     window.__dosuBound = true;
   }
 
-  const start = opts.start || startEl.value;
-  const end   = opts.end   || endEl.value;
-  const physioId = opts.physioId || docSel.value || '';
-
-  const qs = ()=> new URLSearchParams({ start, end, physioId }).toString();
+  const qs = ()=> new URLSearchParams({
+  start:    startEl.value,
+  end:      endEl.value,
+  physioId: (docSel.value || '')
+}).toString();
 
   const tbThera = document.querySelector('#dosuByTherapist tbody');
   const tbNew   = document.querySelector('#dosuNewDist tbody');
