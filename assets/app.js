@@ -384,31 +384,36 @@ window.renderDosu = async function renderDosu(opts = {}){
   const clear = el => el && (el.innerHTML='');
 
   // 치료사 목록(필요시 API 교체)
+// 치료사 목록: 최초 1회만 로드(물리치료사만)
 try {
-  // 현재 선택값(옵션으로 넘어온 값 우선)
-  const prev = (opts.physioId ?? docSel.value ?? '');
+  const keep = (opts.physioId ?? docSel.value ?? '');
 
-  // 서버가 role 필터를 아직 안 받더라도 전체를 가져와서 프론트에서 필터링
-  const j = await apiRequest('/accounts'); // (관리자 권한 필요)
+  if (!window.__dosuUsersLoaded) {
+    // 서버가 role 필터를 지원하면 ↓ 이 줄 유지
+    let j = await apiRequest('/accounts?role=physio');
 
-  // 물리치료사만 남기기
-  const physios = (j.items || []).filter(u => String(u.role) === 'physio');
+    // 만약 서버가 role 쿼리를 무시한다면 백업 필터
+    if (!j?.items?.length || j.items.some(it => !('role' in it))) {
+      j = await apiRequest('/accounts');
+    }
+    const physios = (j.items || []).filter(u => String(u.role) === 'physio');
 
-  // 드롭다운 채우기
-  docSel.innerHTML = ['<option value="">치료사 전체</option>']
-    .concat(physios.map(u => `<option value="${u.id}">${u.name || '치료사'}</option>`))
-    .join('');
+    docSel.innerHTML = ['<option value="">치료사 전체</option>']
+      .concat(physios.map(u => `<option value="${u.id}">${u.name || '치료사'}</option>`))
+      .join('');
 
-  // 혹시 스타일로 숨겨졌으면 보이도록 처리
-  docSel.parentElement?.classList.remove('hidden');
-  docSel.style.display = '';
+    // 드롭다운이 혹시 숨겨졌다면 노출
+    docSel.parentElement?.classList.remove('hidden');
+    docSel.style.display = '';
 
-  // 이전 선택 복원
-  if (prev !== undefined) docSel.value = String(prev);
+    window.__dosuUsersLoaded = true;
+  }
+
+  // 선택값 복원(또는 유지)
+  if (keep !== undefined) docSel.value = String(keep);
 } catch (e) {
   console.warn('physio list load failed:', e);
 }
-
 
   async function load(){
   // ✅ 현재 요청 키
