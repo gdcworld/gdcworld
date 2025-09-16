@@ -340,8 +340,20 @@ window.renderDosu = async function renderDosu(opts = {}){
   const startEl = document.getElementById('dosuRangeStart');
   const endEl   = document.getElementById('dosuRangeEnd');
   const docSel  = document.getElementById('dosuDoctor');
-    let lastQueryKey = '';
-    const start = opts.start || startEl.value;
+  let lastQueryKey = '';
+
+  // ✅ 최초 1회만 바인딩해서 선택/기간 바뀌면 자동 재조회
+  if (!window.__dosuBound) {
+    const doReload = () => window.renderDosu(); // 현재 값으로 다시 호출
+    docSel?.addEventListener('change', doReload, { passive:true });   // 치료사 변경
+    startEl?.addEventListener('change', doReload, { passive:true });  // 시작일 변경
+    endEl?.addEventListener('change', doReload, { passive:true });    // 종료일 변경
+    document.getElementById('dosuSearch')?.addEventListener('click', doReload);
+    document.getElementById('dosuReload')?.addEventListener('click', doReload);
+    window.__dosuBound = true;
+  }
+
+  const start = opts.start || startEl.value;
   const end   = opts.end   || endEl.value;
   const physioId = opts.physioId || docSel.value || '';
 
