@@ -340,24 +340,12 @@ window.renderDosu = async function renderDosu(opts = {}){
   const startEl = document.getElementById('dosuRangeStart');
   const endEl   = document.getElementById('dosuRangeEnd');
   const docSel  = document.getElementById('dosuDoctor');
-  let lastQueryKey = '';
+    let lastQueryKey = '';
+    const start = opts.start || startEl.value;
+  const end   = opts.end   || endEl.value;
+  const physioId = opts.physioId || docSel.value || '';
 
-  // ✅ 최초 1회만 바인딩해서 선택/기간 바뀌면 자동 재조회
-  if (!window.__dosuBound) {
-    const doReload = () => window.renderDosu(); // 현재 값으로 다시 호출
-    docSel?.addEventListener('change', doReload, { passive:true });   // 치료사 변경
-    startEl?.addEventListener('change', doReload, { passive:true });  // 시작일 변경
-    endEl?.addEventListener('change', doReload, { passive:true });    // 종료일 변경
-    document.getElementById('dosuSearch')?.addEventListener('click', doReload);
-    document.getElementById('dosuReload')?.addEventListener('click', doReload);
-    window.__dosuBound = true;
-  }
-
-  const qs = ()=> new URLSearchParams({
-  start:    startEl.value,
-  end:      endEl.value,
-  physioId: (docSel.value || '')
-}).toString();
+  const qs = ()=> new URLSearchParams({ start, end, physioId }).toString();
 
   const tbThera = document.querySelector('#dosuByTherapist tbody');
   const tbNew   = document.querySelector('#dosuNewDist tbody');
@@ -384,36 +372,14 @@ window.renderDosu = async function renderDosu(opts = {}){
   const clear = el => el && (el.innerHTML='');
 
   // 치료사 목록(필요시 API 교체)
-// 치료사 목록: 최초 1회만 로드(물리치료사만)
-try {
-  const keep = (opts.physioId ?? docSel.value ?? '');
+try{
+  const prev = physioId || docSel.value;   // ✅ 현재/요청된 선택 보관
+  const j = await apiRequest('/accounts?role=physio');
+  docSel.innerHTML = ['<option value="">치료사 전체</option>']
+    .concat((j.items||[]).map(u=>`<option value="${u.id}">${u.name||'치료사'}</option>`)).join('');
+  if (prev !== undefined) docSel.value = String(prev);  // ✅ 선택 복원
+}catch{}
 
-  if (!window.__dosuUsersLoaded) {
-    // 서버가 role 필터를 지원하면 ↓ 이 줄 유지
-    let j = await apiRequest('/accounts?role=physio');
-
-    // 만약 서버가 role 쿼리를 무시한다면 백업 필터
-    if (!j?.items?.length || j.items.some(it => !('role' in it))) {
-      j = await apiRequest('/accounts');
-    }
-    const physios = (j.items || []).filter(u => String(u.role) === 'physio');
-
-    docSel.innerHTML = ['<option value="">치료사 전체</option>']
-      .concat(physios.map(u => `<option value="${u.id}">${u.name || '치료사'}</option>`))
-      .join('');
-
-    // 드롭다운이 혹시 숨겨졌다면 노출
-    docSel.parentElement?.classList.remove('hidden');
-    docSel.style.display = '';
-
-    window.__dosuUsersLoaded = true;
-  }
-
-  // 선택값 복원(또는 유지)
-  if (keep !== undefined) docSel.value = String(keep);
-} catch (e) {
-  console.warn('physio list load failed:', e);
-}
 
   async function load(){
   // ✅ 현재 요청 키
