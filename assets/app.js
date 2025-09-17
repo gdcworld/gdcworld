@@ -1,11 +1,10 @@
 // assets/app.js (Cleaned: 네비/파트너 병원만, 계정 CRUD/부트 중복 제거)
 
 (function () {
-  /* ============ 공통 유틸 ============ */
+
   const qs  = (s, el = document) => el.querySelector(s);
   const qsa = (s, el = document) => Array.from(el.querySelectorAll(s));
 
-  /* ============ 네비 전환 ============ */
   function activate(viewId) {
     qsa('.nav button').forEach(btn =>
       btn.classList.toggle('active', btn.dataset.view === viewId)
@@ -15,7 +14,6 @@
     );
   }
 
-  /* ============ 파트너 병원 ============ */
   async function renderPartners() {
     const box = qs('#partnersBox');
     if (!box) return;
@@ -375,8 +373,11 @@ window.renderDosu = async function renderDosu(opts = {}){
 try{
   const prev = physioId || docSel.value;   // ✅ 현재/요청된 선택 보관
   const j = await apiRequest('/accounts?role=physio');
-  docSel.innerHTML = ['<option value="">치료사 전체</option>']
-    .concat((j.items||[]).map(u=>`<option value="${u.id}">${u.name||'치료사'}</option>`)).join('');
+const items = (j.items || []).filter(u => (u.role || '') === 'physio'); // 안전망
+physioSel.innerHTML = ['<option value="">치료사를 선택해주세요</option>']
+  .concat(items.map(u => `<option value="${u.id}">${u.name || '치료사'}</option>`))
+  .join('');
+
   if (prev !== undefined) docSel.value = String(prev);  // ✅ 선택 복원
 }catch{}
 
