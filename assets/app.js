@@ -340,10 +340,22 @@ window.renderDosu = async function renderDosu(opts = {}){
   const docSel  = document.getElementById('dosuDoctor');
     let lastQueryKey = '';
     const start = opts.start || startEl.value;
-  const end   = opts.end   || endEl.value;
-  const physioId = opts.physioId || docSel.value || '';
+const end   = opts.end   || endEl.value;
 
-  const qs = ()=> new URLSearchParams({ start, end, physioId }).toString();
+// 유효한 UUID인지 검사
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+function getPhysioIdSafe() {
+  const v = String((opts.physioId ?? docSel.value ?? '')).trim();
+  return UUID_RE.test(v) ? v : '';   // 올바른 uuid만 사용, 아니면 빈 값
+}
+
+// 쿼리스트링 생성: physioId가 있으면만 포함
+const qs = () => {
+  const p = { start, end };
+  const id = getPhysioIdSafe();
+  if (id) p.physioId = id;
+  return new URLSearchParams(p).toString();
+};
 
   const tbThera = document.querySelector('#dosuByTherapist tbody');
   const tbNew   = document.querySelector('#dosuNewDist tbody');
@@ -399,7 +411,8 @@ async function loadPhysiosInto(selectEl) {
   selectEl.innerHTML = ['<option value="">치료사 전체</option>']
     .concat(items.map(u => `<option value="${u.id}">${u.name || '치료사'}</option>`))
     .join('');
-  if (prev !== undefined) selectEl.value = String(prev);
+  const ok = (items||[]).some(u => String(u.id) === String(prev));
+selectEl.value = ok ? String(prev) : '';
 }
 
 await loadPhysiosInto(docSel);
@@ -629,8 +642,8 @@ window.bootDosuAddUI = (function(){
           const j = await apiRequest('/accounts?role=physio'); // admin 권한 필요
           const items = j.items || [];
           physioSel.innerHTML = ['<option value="">치료사를 선택해주세요</option>']
-            .concat(items.map(u => `<option value="${u.id}">${u.name || u.email || '치료사'}</option>`))
-            .join('');
+            .concat(items.map(u => `<option value="${u.id}">${u.name || '치료사'}</option>`))
+  .join('');
           physioSel.dataset.loaded = '1';
         } catch(e) { console.warn('physio load failed', e); }
       })();
