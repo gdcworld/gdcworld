@@ -201,14 +201,23 @@ if (path === '/carm/users' && method === 'GET') {
     const check = requireRole(auth, ['admin']);
     if (!check.ok) return send(check.status, { ok:false, message: check.message });
 
-    if (method === 'GET') {
-      const { data, error } = await supabase
-        .from('accounts')
-        .select(ACCOUNT_SELECT)
-        .order('created_at', { ascending:false });
-      if (error) return send(500, { ok:false, message:error.message });
-      return send(200, { ok:true, items: (data || []).map(toCamel) });
-    }
+   if (method === 'GET') {
+  const url        = new URL(event.rawUrl);
+  const roleFilter = url.searchParams.get('role');   // 예: 'physio'
+  const emailLike  = url.searchParams.get('email');  // (옵션)
+
+  let q = supabase
+    .from('accounts')
+    .select(ACCOUNT_SELECT)
+    .order('created_at', { ascending:false });
+
+  if (roleFilter) q = q.eq('role', roleFilter);
+  if (emailLike)  q = q.ilike('email', `%${emailLike}%`);
+
+  const { data, error } = await q;
+  if (error) return send(500, { ok:false, message:error.message });
+  return send(200, { ok:true, items: (data || []).map(toCamel) });
+}
 
     if (method === 'POST') {
       const body = safeJson(event.body) || {};

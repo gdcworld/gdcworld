@@ -369,18 +369,40 @@ window.renderDosu = async function renderDosu(opts = {}){
   const fmt = (n)=> num(n).toLocaleString();
   const clear = el => el && (el.innerHTML='');
 
-  // 치료사 목록(필요시 API 교체)
-try{
-  const prev = physioId || docSel.value;   // ✅ 현재/요청된 선택 보관
-  const j = await apiRequest('/accounts?role=physio');
-const items = (j.items || []).filter(u => (u.role || '') === 'physio'); // 안전망
-physioSel.innerHTML = ['<option value="">치료사를 선택해주세요</option>']
-  .concat(items.map(u => `<option value="${u.id}">${u.name || '치료사'}</option>`))
-  .join('');
+// 치료사 목록(필요시 API 교체)  ← 교체본 시작
+let physioIdSet = new Set();
 
-  if (prev !== undefined) docSel.value = String(prev);  // ✅ 선택 복원
-}catch{}
+async function loadPhysiosInto(selectEl) {
+  let items = [];
+  // 1차: 서버가 role 필터를 지원한다고 가정
+  try {
+    const j = await apiRequest('/accounts?role=physio');
+    items = j.items || [];
+  } catch (e) { /* 무시하고 2차 시도 */ }
 
+  // 2차: 1차가 실패/빈 목록이면 전체 받아서 프론트에서 필터
+  if (!items.length) {
+    try {
+      const j2 = await apiRequest('/accounts');
+      items = (j2.items || []).filter(u => (u.role || '') === 'physio');
+    } catch (e) { /* 최종 실패면 아래서 처리 */ }
+  }
+
+  if (!items.length) {
+    selectEl.innerHTML = '<option value="">치료사 없음</option>';
+    physioIdSet = new Set();
+    return;
+  }
+
+  physioIdSet = new Set(items.map(u => String(u.id)));
+  const prev = physioId || selectEl.value;
+  selectEl.innerHTML = ['<option value="">치료사 전체</option>']
+    .concat(items.map(u => `<option value="${u.id}">${u.name || '치료사'}</option>`))
+    .join('');
+  if (prev !== undefined) selectEl.value = String(prev);
+}
+
+await loadPhysiosInto(docSel);
 
   async function load(){
   // ✅ 현재 요청 키
